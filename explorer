@@ -509,6 +509,8 @@ local menuStart = function ( nMenuT )
 			tFiles[i] = sSide
 		end
 	end
+	nFiles = #tFiles
+	tIsDir = {}
 	if bFailed then
 		quitMenu()
 		return
@@ -1161,8 +1163,10 @@ while true do
 						writeCursor()
 					end
 				end
-			elseif key == keys.f5 then
-				break
+			elseif key == keys.f5 then.
+				if not bMenu then
+					break
+				end
 			elseif key == keys.leftCtrl or key == keys.rightCtrl then
 				ctrlClick = true
 			elseif key == keys.delete then
