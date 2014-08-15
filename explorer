@@ -381,8 +381,6 @@ local refScr = function ()
 		--Write menuLeft
 		term.setCursorPos(1, 3)
 		write("/")
-		term.setCursorPos(1, 4)
-		write("Home")
 	end
 	--Write divider
 	term.setCursorPos(1, ly + 1)
@@ -1360,9 +1358,6 @@ while true do
 				if my > 2 and my <= ly then
 					if my == 3 then
 						DIR = "/"
-						break
-					elseif my == 4 then
-						DIR = sHomeDir
 						break
 					end
 				end
