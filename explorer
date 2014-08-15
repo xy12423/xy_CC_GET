@@ -531,9 +531,7 @@ local menuFClick = function ()
 		term.clear()
 		term.setCursorPos(1, 1)
 		runInUser("/" .. fs.combine(tBackup.sDir, tBackup.sFile))
-		for i = nativeTermElem, term.getStackElem() do
-			term.restore()
-		end
+		term.redirect(nativeTermElem)
 		term.setCursorBlink(false)
 		term.setCursorPos(1, ly + 2)
 		write("Press any key to continue")
@@ -549,9 +547,7 @@ local menuFClick = function ()
 			table.insert(tWords, match)
 		end
 		runInUser("/" .. fs.combine(tBackup.sDir, tBackup.sFile), unpack( tWords, 1 ))
-		for i = nativeTermElem, term.getStackElem() do
-			term.restore()
-		end
+		term.redirect(nativeTermElem)
 		term.setCursorBlink(false)
 		term.setCursorPos(1, ly + 2)
 		write("Press any key to continue")
@@ -564,9 +560,7 @@ local menuFClick = function ()
 				handle.setCursorPos(1, 1)
 				term.redirect(handle)
 				runInUser("/" .. fs.combine(tBackup.sDir, tBackup.sFile))
-				for i = nativeTermElem, term.getStackElem() do
-					term.restore()
-				end
+				term.redirect(nativeTermElem)
 				break
 			end
 		end
@@ -1315,9 +1309,7 @@ while true do
 							term.clear()
 							term.setCursorPos(1, 1)
 							runInUser("/" .. fs.combine(sDir, tFiles[ptrl]))
-							for i = nativeTermElem, term.getStackElem() do
-								term.restore()
-							end
+							term.redirect(nativeTermElem)
 							term.setCursorBlink(false)
 							term.setCursorPos(1, ly + 2)
 							write("Press any key to continue")
