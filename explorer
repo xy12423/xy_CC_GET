@@ -1166,6 +1166,8 @@ while true do
 					else
 						runInUser("delete", "/" .. fs.combine(sDir, tFiles[ptrl]))
 						if fs.exists("/" .. fs.combine(sDir, tFiles[ptrl])) then
+							printMsg("Access denied")
+						else
 							if nFiles > ly - 2 then
 								if ptrl == nFiles or ptrf == nFiles - ly + 3 then
 									ptrf = ptrf - 1
@@ -1187,8 +1189,6 @@ while true do
 							refScr()
 							writeCursor()
 							printMsg("1 file deleted")
-						else
-							printMsg("Access denied")
 						end
 					end
 				end
