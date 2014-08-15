@@ -898,14 +898,6 @@ local menuPClick = function ()
 	return false
 end
 local menuEClick = function ()
-	local sPathD = disk.getMountPath(tFiles[ptrl])
-	if sPathD == string.sub(tBackup.sDir, 1, string.len(sPathD)) then
-		disk.eject(tFiles[ptrl])
-		if sDir ~= "" then
-			goup()
-		end
-		return true
-	end
 	disk.eject(tFiles[ptrl])
 	quitMenu()
 	return false
