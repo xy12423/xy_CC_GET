@@ -1161,7 +1161,7 @@ while true do
 						writeCursor()
 					end
 				end
-			elseif key == keys.f5 then.
+			elseif key == keys.f5 then
 				if not bMenu then
 					break
 				end
