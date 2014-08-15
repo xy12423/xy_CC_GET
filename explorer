@@ -1,0 +1,1583 @@
+local nativeTermElem = term.current()
+local lx, ly = term.getSize()
+ly = ly - 2
+local DIR = ""
+
+local nStyle = 0
+local nCursorX = 7
+
+local tMenuF = {"Run", "Run with arguments", "Run in monitor", "Edit", "Cut", "Copy", "Delete", "Rename", "Get Size"}
+local tMenuD = {"New File", "New Folder", "Refresh", "Paste", "Find", "Get Size", "Get Free Space"}
+local tMenuP = {"Open", "Cut", "Copy", "Delete", "Get Size", "Get Free Space"}
+local sPasteT, sPasteTN, bIsCut = "", "", false
+local msgTimer, sMsgWillPrint = nil, nil
+local tRout, nRoutP, bNBack = {}, 0, true
+local bIsSearch, sFileNameS = false, ""
+local bNHidden = false
+local vAlarm, nAlarmInterval = nil, 1 / 60
+local tEventsS = {}
+local runInUser = function ( sProgram, ... )
+	return shell.run( sProgram, ... )
+end
+
+local function str_repeat( sStr, nTimes )
+	local ret = ""
+	for i = 1, nTimes do
+		ret = ret .. sStr
+	end
+	return ret
+end
+
+local function getSizeAdv( sPath )
+	local nRet = 0
+	if fs.isDir(sPath) == false then
+		nRet = fs.getSize(sPath)
+	else
+		local tFiles = fs.list(sPath)
+		local nFiles = #tFiles
+		for i = 1, nFiles do
+			local sThisF = tFiles[i]
+			local sThisA = fs.combine(sPath, sThisF)
+			if fs.isDir(sThisA) then
+				nRet = nRet + getDirSize(sThisA)
+			else
+				nRet = nRet + fs.getSize(sThisA)
+			end
+		end
+	end
+	return nRet
+end
+
+local function transSize( nSizeByte, bBinary )
+	if type(nSizeByte) ~= "number" then
+		error("bad argument: number excepted, got " .. type(nSizeByte))
+	end
+	local nCarry, nLevel = nil, 1
+	local tLevel = {}
+	if bBinary then
+		nCarry = 1024
+		tLevel = {"Bytes", "KiB", "MiB", "GiB", "TiB"}
+	else
+		nCarry = 1000
+		tLevel = {"Bytes", "KB", "MB", "GB", "TB"}
+	end
+	while nSizeByte > nCarry do
+		nLevel = nLevel + 1
+		nSizeByte = nSizeByte / nCarry
+	end
+	return tostring(math.floor(nSizeByte * 1000 + 0.5) / 1000) .. " " .. tLevel[nLevel]
+end
+
+local tHasDisk, nDiskC = {}, 0
+local function refDisk( vNNeedMsg )
+	local tOldHD, nOldC = tHasDisk, nDiskC
+	tHasDisk, nDiskC = {}, 0
+	for n, sSide in pairs(rs.getSides()) do
+		if disk.isPresent(sSide) then
+			tHasDisk[sSide] = sSide
+			nDiskC = nDiskC + 1
+		end
+	end
+	if not vNNeedMsg then
+		for n, sSide in pairs(rs.getSides()) do
+			if tOldHD[sSide] and (not tHasDisk[sSide]) then
+				os.queueEvent("disk_eject", sSide)
+			elseif (not tOldHD[sSide]) and tHasDisk[sSide] then
+				os.queueEvent("disk", sSide)
+			end
+		end
+	end
+end
+refDisk( true )
+
+local sTextColor, sDirColor, sFileColor, sBackgroundColor, sSelectedColor = colors.white, nil, nil, colors.black, nil
+
+if term.isColor() then
+	sDirColor = colors.green
+	sFileColor = colors.white
+	sSelectedColor = colors.lightBlue
+else
+	sDirColor = colors.white
+	sFileColor = colors.white
+	sSelectedColor = colors.black
+end
+
+local function waitKey()
+	local tEvents = {}
+	while true do
+		local e, p1, p2, p3, p4 = os.pullEvent()
+		if e == "key" or (e == "char" or (e == "mouse_click" or e == "monitor_touch")) then
+			break
+		else
+			table.insert(tEvents, {e, p1, p2, p3, p4})
+			if e == "disk" then
+				tHasDisk[p1] = p1
+				nDiskC = nDiskC + 1
+			elseif e == "disk_eject" then
+				tHasDisk[p1] = nil
+				nDiskC = nDiskC - 1
+			end
+		end
+	end
+	for i, n in ipairs(tEvents) do
+		os.queueEvent(unpack(n, 1))
+	end
+end
+
+local function findFile( sDir, sStr )
+	local tResult = {}
+	local tFiles = fs.list(sDir)
+	local nFiles = #tFiles
+	local nLStr = string.len(sStr)
+	local nTRP = 1
+	for i = 1, nFiles do
+		local sThisF = tFiles[i]
+		local sThisA = fs.combine(sDir, sThisF)
+		for j = 1, string.len(sThisF) - nLStr + 1 do
+			if string.sub(sThisF, j, j + nLStr - 1) == sStr then
+				tResult[nTRP] = sThisA
+				nTRP = nTRP + 1
+				break
+			end
+		end
+		if fs.isDir(sThisA) then
+			local tResN = findFile(sThisA, sStr)
+			for i = 1, #tResN do
+				tResult[nTRP] = tResN[i]
+				nTRP = nTRP + 1
+			end
+		end
+	end
+	return tResult
+end
+
+local function getDirSize( sDir )
+	local nRet = 0
+	local tFiles = fs.list(sDir)
+	local nFiles = #tFiles
+	for i = 1, nFiles do
+		local sThisF = tFiles[i]
+		local sThisA = fs.combine(sDir, sThisF)
+		if fs.isDir(sThisA) then
+			nRet = nRet + getDirSize(sThisA)
+		else
+			nRet = nRet + fs.getSize(sThisA)
+		end
+	end
+	return nRet
+end
+
+local function printMsg( sMsg )
+	term.setCursorPos(1, ly + 2)
+	for i = 1, lx - 16 do
+		write(" ")
+	end
+	term.setCursorPos(1, ly + 2)
+	write(sMsg)
+	msgTimer = os.startTimer(5)
+end
+
+local function SPC( nLong )
+	if type(nLong) ~= "number" then
+		return ""
+	end
+	local ret = ""
+	for i = 1, nLong do
+		ret = ret .. " "
+	end
+	return ret
+end
+
+local function timerAlarm()
+	term.setCursorPos(lx - 10, 1)
+	term.setTextColor(sTextColor)
+	term.setBackgroundColor(sBackgroundColor)
+	local nTime = os.time()
+	local sTime = textutils.formatTime(nTime, true)
+	if string.len(sTime) < 5 then
+		sTime = "0" .. sTime
+	end
+	write(sTime)
+	local nNewAlarm = nTime + nAlarmInterval
+	if nNewAlarm >= 24 then
+		nNewAlarm = nNewAlarm - 24
+	end
+	vAlarm = os.setAlarm(nNewAlarm)
+end
+
+local function onExit()
+	term.clear()
+	term.setCursorPos(1, 1)
+	term.setCursorBlink(false)
+	for i, n in ipairs(tEventsS) do
+		os.queueEvent(unpack(n, 1))
+	end
+end
+
+local sDir = ""
+local tFiles, nFiles, tIsDir = {}, 0, {}
+local nFolderC, nFileC = 0, 0
+local bMenu, nMenuType = false, 0
+local tMenuStack, tBackup, sPeriMenuSide = {}, {}, ""
+local dblClick, dblTimer = false, nil
+local timeTimer, timeMult = nil, 0.8
+local ctrlClick = false
+local ptrf, ptrl, ptry = 1, 1, 3
+local nShift = 0
+
+local clearCursor, writeCursor
+if nStyle == 0 then
+	clearCursor = function ()
+		if ptry > 2 and ptry <= ly then
+			term.setCursorPos(nCursorX, ptry)
+			term.write(" ")
+		end
+	end
+	writeCursor = function ()
+		if ptry > 2 and ptry <= ly then
+			term.setCursorPos(nCursorX, ptry)
+			term.write("-")
+		end
+	end
+elseif nStyle == 1 then
+	clearCursor = function ()
+		if ptry > 2 and ptry <= ly then
+			term.setCursorPos(nCursorX, ptry)
+			term.setBackgroundColor(sBackgroundColor)
+			if tIsDir[ptrl] then
+				term.setTextColor(sDirColor)
+			else
+				term.setTextColor(sFileColor)
+			end
+			term.write(SPC(lx - nCursorX))
+			term.setCursorPos(nCursorX + 1, ptry)
+			term.write(tFiles[ptrl])
+			if tIsDir[ptrl] then
+				term.setTextColor(sTextColor)
+				term.setCursorPos(lx - 4, ptry)
+				write("DIR")
+			end
+		end
+	end
+	writeCursor = function ()
+		if ptry > 2 and ptry <= ly then
+			term.setCursorPos(nCursorX, ptry)
+			term.setBackgroundColor(sSelectedColor)
+			if tIsDir[ptrl] then
+				term.setTextColor(sDirColor)
+			else
+				term.setTextColor(sFileColor)
+			end
+			term.write(SPC(lx - nCursorX))
+			term.setCursorPos(nCursorX + 1, ptry)
+			term.write(tFiles[ptrl])
+			if tIsDir[ptrl] then
+				term.setTextColor(sTextColor)
+				term.setCursorPos(lx - 4, ptry)
+				write("DIR")
+			end
+			term.setTextColor(sBackgroundColor)
+		end
+	end
+end
+local refFilLst = function ()
+	nFolderC, nFileC = 0, 0
+	tFiles = fs.list( sDir )
+	table.sort(tFiles)
+	if not bNHidden then
+		for i, n in ipairs(tFiles) do
+			if string.sub( n, 1, 1 ) == "." then
+				table.remove(tFiles, i)
+			end
+		end
+	end
+	nFiles = #tFiles
+	tIsDir = {}
+	local tBFiles = {}
+	local tBIsDir = {}
+	local tptr = 1
+	for i = 1, nFiles do
+		if fs.isDir(fs.combine(sDir, tFiles[i])) then
+			tIsDir[i] = true
+			nFolderC = nFolderC + 1
+			tBFiles[tptr] = tFiles[i]
+			tBIsDir[tptr] = tIsDir[i]
+			tptr = tptr + 1
+		else
+			nFileC = nFileC + 1
+		end
+	end
+	for i = 1, nFiles do
+		if not tIsDir[i] then
+			tBFiles[tptr] = tFiles[i]
+			tBIsDir[tptr] = tIsDir[i]
+			tptr = tptr + 1
+		end
+	end
+	tFiles = tBFiles
+	tIsDir = tBIsDir
+end
+local refScr = function ()
+	term.setTextColor(sTextColor)
+	term.setBackgroundColor(sBackgroundColor)
+	term.clear()
+	term.setCursorPos(1, 1)
+	--Write menuUp
+	write("<|>|")
+	if string.len(sDir) > lx - 14 then
+		nShift = string.len(sDir) - lx + 14
+		write(string.sub(sDir, nShift + 1))
+	else
+		if sDir == "" then
+			write("/")
+		else
+			write(sDir)
+		end
+	end
+	term.setCursorPos(lx - 11, 1)
+	write("|")
+	timerAlarm()
+	write("|Go up")
+	--Write divider
+	term.setCursorPos(1, 2)
+	local tmp = str_repeat("-", lx)
+	write(tmp)
+	--Write fileList
+	local nTmp1 = lx - nCursorX - 6
+	for i = 1, ly - 2 do
+		local sFile = tFiles[ptrf + i - 1]
+		if sFile == nil then
+			break
+		end
+		term.setCursorPos(nCursorX + 1, i + 2)
+		if tIsDir[ptrf + i - 1] then
+			term.setTextColor(sDirColor)
+		else
+			if bMenu then
+				term.setTextColor(sTextColor)
+			else
+				term.setTextColor(sFileColor)
+			end
+		end
+		write(string.sub(sFile, 1, nTmp1))
+		if tIsDir[ptrf + i - 1] then
+			term.setTextColor(sTextColor)
+			term.setCursorPos(lx - 4, i + 2)
+			write("DIR")
+		end
+	end
+	term.setTextColor(sTextColor)
+	--Write upButton and downButton
+	term.setCursorPos(lx, 3)
+	write("-")
+	term.setCursorPos(lx, ly)
+	write("+")
+	if (not bMenu) or nMenuType == 5 then
+		--Write divider
+		for i = 3, ly do
+			term.setCursorPos(nCursorX - 1, i)
+			term.write("|")
+		end
+		--Write menuLeft
+		term.setCursorPos(1, 3)
+		write("/")
+		term.setCursorPos(1, 4)
+		write("Home")
+	end
+	--Write divider
+	term.setCursorPos(1, ly + 1)
+	write(tmp)
+	--Write menuDown
+	term.setCursorPos(1, ly + 2)
+	if sMsgWillPrint then
+		write(string.sub(sMsgWillPrint, 1, lx - 12))
+		sMsgWillPrint = nil
+		msgTimer = os.startTimer(5)
+	else
+		write(tostring(nFolderC) .. " Folder(s), " .. tostring(nFileC) .. " File(s)")
+	end
+	term.setCursorPos(lx - 5, ly + 2)
+	write("|Eject")
+end
+local quitMenu = function ()
+	if #tMenuStack == 0 then
+		sDir = DIR
+		if string.sub(sDir, 1, 1) == "/" then
+			sDir = string.sub(sDir, 2)
+		end
+		if string.sub(sDir, -1, -1) == "/" then
+			sDir = string.sub(sDir, 1, -2)
+		end
+		tFiles = tBackup.tFiles
+		nFiles = tBackup.nFiles
+		tIsDir = tBackup.tIsDir
+		ptrf = tBackup.ptrf
+		ptrl = tBackup.ptrl
+		ptry = tBackup.ptry
+		nFolderC = tBackup.nFolderC
+		nFileC = tBackup.nFileC
+		bMenu = false
+		nMenuType = 0
+		nCursorX = 7
+		tBackup = {}
+	else
+		local tUp = table.remove(tMenuStack)
+		sDir = tUp.sDir
+		nMenuType = tUp.nMenuType
+		tFiles = tUp.tFiles
+		nFiles = tUp.nFiles
+		tIsDir = tUp.tIsDir
+		ptrf = tUp.ptrf
+		ptrl = tUp.ptrl
+		ptry = tUp.ptry
+		nFolderC = tUp.nFolderC
+		nFileC = tUp.nFileC
+	end
+	refScr()
+	writeCursor()
+end
+local goup = function ()
+	sDir = "/" .. sDir
+	for i = string.len(sDir), 1, -1 do
+		if string.sub(sDir, i, i) == "/" then
+			if i == 1 then
+				DIR = ""
+			else
+				DIR = string.sub(sDir, 2, i - 1)
+				return
+			end
+		end
+	end
+end
+local menuStart = function ( nMenuT )
+	local bFailed = false
+	if not bMenu then
+		bMenu = true
+		tBackup.sDir = sDir
+		tBackup.sFile = tFiles[ptrl]
+		tBackup.tFiles = tFiles
+		tBackup.nFiles = nFiles
+		tBackup.tIsDir = tIsDir
+		tBackup.ptrf = ptrf
+		tBackup.ptrl = ptrl
+		tBackup.ptry = ptry
+		tBackup.nFolderC = nFolderC
+		tBackup.nFileC = nFileC
+	else
+		local tThis = {}
+		tThis.nMenuType = nMenuType
+		tThis.sDir = sDir
+		tThis.sFile = tFiles[ptrl]
+		tThis.tFiles = tFiles
+		tThis.nFiles = nFiles
+		tThis.tIsDir = tIsDir
+		tThis.ptrf = ptrf
+		tThis.ptrl = ptrl
+		tThis.ptry = ptry
+		tThis.nFolderC = nFolderC
+		tThis.nFileC = nFileC
+		table.insert(tMenuStack, tThis)
+	end
+	nMenuType = nMenuT
+	if nMenuT == 1 then
+		if tFiles[ptrl] then
+			sDir = "Menu(" .. tFiles[ptrl] .. ")"
+			tFiles = tMenuF
+		else
+			bFailed = true
+		end
+	elseif nMenuT == 2 then
+		if sDir == "" then
+			sDir = "Menu(/)"
+		else
+			sDir = "Menu(" .. fs.getName(sDir) .. ")"
+		end
+		tFiles = tMenuD
+	elseif nMenuT == 3 then
+		if tFiles[ptrl] then
+			sDir = "Menu(" .. tFiles[ptrl] .. ")"
+			tFiles = tMenuP
+		else
+			bFailed = true
+		end
+	elseif nMenuT == 4 then
+		sDir = "Eject"
+		tFiles = {}
+		local i = 0
+		for n, sSide in pairs(tHasDisk) do
+			i = i + 1
+			tFiles[i] = sSide
+		end
+	end
+	if bFailed then
+		quitMenu()
+		return
+	end
+	if nFiles < 1 then
+		quitMenu()
+		return
+	end
+	ptrf = 1
+	ptrl = 1
+	ptry = 3
+	nCursorX = 1
+	refScr()
+	writeCursor()
+end
+local menuFClick = function ()
+	local sMsg = nil
+	local sDeleteSuccessful = true
+	if ptrl == 1 then
+		term.clear()
+		term.setCursorPos(1, 1)
+		runInUser("/" .. fs.combine(tBackup.sDir, tBackup.sFile))
+		for i = nativeTermElem, term.getStackElem() do
+			term.restore()
+		end
+		term.setCursorBlink(false)
+		term.setCursorPos(1, ly + 2)
+		write("Press any key to continue")
+		waitKey()
+	elseif ptrl == 2 then
+		term.setCursorPos(1, nFiles + 3)
+		write("Please input the arguments:")
+		local _sLine = io.read()
+		term.clear()
+		term.setCursorPos(1, 1)
+		local tWords = {}
+		for match in string.gmatch( _sLine, "[^ \t]+" ) do
+			table.insert(tWords, match)
+		end
+		runInUser("/" .. fs.combine(tBackup.sDir, tBackup.sFile), unpack( tWords, 1 ))
+		for i = nativeTermElem, term.getStackElem() do
+			term.restore()
+		end
+		term.setCursorBlink(false)
+		term.setCursorPos(1, ly + 2)
+		write("Press any key to continue")
+		waitKey()
+	elseif ptrl == 3 then
+		for n,sSide in pairs(rs.getSides()) do
+			if peripheral.getType( sSide ) == "monitor" then
+				local handle = peripheral.wrap(sSide)
+				handle.clear()
+				handle.setCursorPos(1, 1)
+				term.redirect(handle)
+				runInUser("/" .. fs.combine(tBackup.sDir, tBackup.sFile))
+				for i = nativeTermElem, term.getStackElem() do
+					term.restore()
+				end
+				break
+			end
+		end
+	elseif ptrl == 4 then
+		runInUser("edit", "/" .. fs.combine(tBackup.sDir, tBackup.sFile))
+	elseif ptrl == 5 then
+		sPasteT = "/" .. fs.combine(tBackup.sDir, tBackup.sFile)
+		sPasteTN = tBackup.sFile
+		bIsCut = true
+		sMsg = "1 file added into clipboard"
+	elseif ptrl == 6 then
+		sPasteT = "/" .. fs.combine(tBackup.sDir, tBackup.sFile)
+		sPasteTN = tBackup.sFile
+		bIsCut = false
+		sMsg = "1 file added into clipboard"
+	elseif ptrl == 7 then
+		term.setCursorPos(1, nFiles + 3)
+		write("Are you sure to delete it?(y/n)")
+		local _sLine = string.lower(string.sub(io.read(), 1, 1))
+		if _sLine == "y" then
+			if fs.isReadOnly("/" .. fs.combine(tBackup.sDir, tBackup.sFile)) then
+				sMsg = "Access denied"
+				sDeleteSuccessful = false
+			else
+				runInUser("delete", "/" .. fs.combine(tBackup.sDir, tBackup.sFile))
+				sMsg = "1 file deleted"
+			end
+		end
+	elseif ptrl == 8 then
+		term.setCursorPos(1, nFiles + 3)
+		write("Please input the new name of the file:")
+		local _sLine = io.read()
+		local sSrc = "/" .. fs.combine(tBackup.sDir, tBackup.sFile)
+		local sDst = "/" .. fs.combine(tBackup.sDir, _sLine)
+		if fs.exists(sDst) and sSrc ~= sDst then
+			print("File already exists")
+			write("Press any key to continue")
+			waitKey()
+		elseif fs.isReadOnly(sDst) then
+			print("Access denied")
+			write("Press any key to continue")
+			waitKey()
+		else
+			runInUser("move", sSrc, sDst)
+			tBackup.tFiles[tBackup.ptrl] = _sLine
+		end
+	elseif ptrl == 9 then
+		term.setCursorPos(1, nFiles + 3)
+		print("The size of the file is " .. transSize(fs.getSize("/" .. fs.combine(tBackup.sDir, tBackup.sFile))))
+		write("Press any key to continue")
+		waitKey()
+	end
+	refDisk()
+	sDir = DIR
+	if sDir ~= tBackup.sDir then
+		return true
+	elseif ptrl == 7 and sDeleteSuccessful then
+		refFilLst()
+		if tBackup.nFiles > ly - 2 then
+			if tBackup.ptrl == tBackup.nFiles or tBackup.ptrf == tBackup.nFiles - ly + 3 then
+				ptrf = tBackup.ptrf - 1
+				ptrl = tBackup.ptrl - 1
+				ptry = tBackup.ptry
+			end
+		else
+			if tBackup.ptrl == tBackup.nFiles then
+				ptrf = tBackup.ptrf
+				ptrl = tBackup.ptrl - 1
+				ptry = tBackup.ptry - 1
+			else
+				ptrf = tBackup.ptrf
+				ptrl = tBackup.ptrl
+				ptry = tBackup.ptry
+			end
+		end
+	else
+		tFiles = tBackup.tFiles
+		nFiles = tBackup.nFiles
+		tIsDir = tBackup.tIsDir
+		ptrf = tBackup.ptrf
+		ptrl = tBackup.ptrl
+		ptry = tBackup.ptry
+	end
+	nFolderC = tBackup.nFolderC
+	nFileC = tBackup.nFileC
+	if #tMenuStack == 0 then
+		bMenu = false
+		nMenuType = 0
+		nCursorX = 7
+		tBackup = {}
+	else
+		quitMenu()
+	end
+	refScr()
+	if sMsg then
+		printMsg(sMsg)
+	end
+	writeCursor()
+	return false
+end
+local menuDClick = function ()
+	if ptrl == 1 then
+		term.setCursorPos(1, nFiles + 3)
+		write("Please input the name of the file:")
+		local _sLine = io.read()
+		if _sLine ~= "" then
+			local sAbsPath = fs.combine(tBackup.sDir, _sLine)
+			if fs.isReadOnly(sAbsPath) then
+				term.setCursorPos(1, nFiles + 4)
+				print("Access denied")
+				write("Press any key to continue")
+				waitKey()
+				quitMenu()
+			else
+				local tHF = fs.open(sAbsPath, "w")
+				tHF.close()
+				runInUser("edit", "/" .. sAbsPath)
+				refDisk()
+			end
+		end
+	elseif ptrl == 2 then
+		term.setCursorPos(1, nFiles + 3)
+		write("Please input the name of the folder:")
+		local _sLine = io.read()
+		if _sLine ~= "" then
+			runInUser("mkdir", "/" .. fs.combine(tBackup.sDir, _sLine))
+			if fs.isDir(fs.combine(tBackup.sDir, _sLine)) then
+				DIR = fs.combine(tBackup.sDir, _sLine)
+			else
+				sMsgWillPrint = "Operation Failed"
+			end
+		end
+	elseif ptrl == 3 then
+		return true
+	elseif ptrl == 4 then
+		if sPasteT ~= "" and fs.exists(sPasteT) then
+			if sPasteT == string.sub("/" .. tBackup.sDir, 1, string.len(sPasteT)) then
+				term.setCursorPos(1, nFiles + 3)
+				print("Can't copy a directory inside itself")
+				write("Press any key to continue")
+				waitKey()
+				quitMenu()
+			elseif getSizeAdv(sPasteT) > fs.getFreeSpace("/" .. tBackup.sDir) then
+				term.setCursorPos(1, nFiles + 3)
+				print("Free space is not enough")
+				write("Press any key to continue")
+				waitKey()
+				quitMenu()
+			elseif "/" .. tBackup.sDir == string.sub(sPasteT, 1, string.len(tBackup.sDir) + 1) then
+				sMsgWillPrint = "Access denied"
+			else
+				if fs.exists(fs.combine(tBackup.sDir, sPasteTN)) then
+					term.setCursorPos(1, nFiles + 3)
+					print("File already exists.Do you want to replace it?(y/n)")
+					local _sLine = string.lower(string.sub(io.read(), 1, 1))
+					if _sLine == "y" then
+						if fs.isReadOnly("/" .. fs.combine(tBackup.sDir, sPasteTN)) then
+							sMsgWillPrint = "Access denied"
+						else
+							runInUser("delete", "/" .. fs.combine(tBackup.sDir, sPasteTN))
+							if fs.isDir(sPasteT) then
+								sMsgWillPrint = "1 folder pasted"
+							else
+								sMsgWillPrint = "1 file pasted"
+							end
+							if bIsCut then
+								runInUser("move", sPasteT, "/" .. tBackup.sDir)
+							else
+								runInUser("copy", sPasteT, "/" .. tBackup.sDir)
+							end
+						end
+					end
+				else
+					if fs.isReadOnly("/" .. fs.combine(tBackup.sDir, sPasteTN)) then
+						sMsgWillPrint = "Access denied"
+					else
+						if fs.isDir(sPasteT) then
+							sMsgWillPrint = "1 folder pasted"
+						else
+							sMsgWillPrint = "1 file pasted"
+						end
+						if bIsCut then
+							runInUser("move", sPasteT, "/" .. tBackup.sDir)
+						else
+							runInUser("copy", sPasteT, "/" .. tBackup.sDir)
+						end
+					end
+				end
+				if bIsCut then
+					sPasteT, sPasteTN, bIsCut = "", "", false
+				end
+			end
+		else
+			term.setCursorPos(1, nFiles + 3)
+			print("There's nothing in the clipboard or the file was deleted")
+			write("Press any key to continue")
+			waitKey()
+			quitMenu()
+		end
+	elseif ptrl == 5 then
+		term.setCursorPos(1, nFiles + 3)
+		write("Please input the name of the file or folder:")
+		local _sLine = io.read()
+		local tFResult = findFile( tBackup.sDir, _sLine )
+		if #tFResult == 0 then
+			print("No match found")
+			write("Press any key to continue")
+			waitKey()
+			quitMenu()
+			return false
+		end
+		bMenu = true
+		nMenuType = 5
+		nCursorX = 7
+		sDir = "Search"
+		tFiles = tFResult
+		nFiles = #tFiles
+		tIsDir = {}
+		nFolderC, nFileC = 0, 0
+		do
+			local tBFiles = {}
+			local tBIsDir = {}
+			local tptr = 1
+			for i = 1, nFiles do
+				if fs.isDir(tFiles[i]) then
+					tIsDir[i] = true
+					nFolderC = nFolderC + 1
+					tBFiles[tptr] = tFiles[i]
+					tBIsDir[tptr] = tIsDir[i]
+					tptr = tptr + 1
+				else
+					nFileC = nFileC + 1
+				end
+			end
+			for i = 1, nFiles do
+				if not tIsDir[i] then
+					tBFiles[tptr] = tFiles[i]
+					tBIsDir[tptr] = tIsDir[i]
+					tptr = tptr + 1
+				end
+			end
+			tFiles = tBFiles
+			tIsDir = tBIsDir
+		end
+		ptrf = 1
+		ptrl = 1
+		ptry = 3
+		refScr()
+		writeCursor()
+		return false, true
+	elseif ptrl == 6 then
+		term.setCursorPos(1, nFiles + 3)
+		print("The size of the currect folder is " .. transSize(getDirSize("/" .. tBackup.sDir)))
+		write("Press any key to continue")
+		waitKey()
+		quitMenu()
+		return false
+	elseif ptrl == 7 then
+		term.setCursorPos(1, nFiles + 3)
+		print("The free space of the currect folder is " .. transSize(fs.getFreeSpace("/" .. tBackup.sDir)))
+		write("Press any key to continue")
+		waitKey()
+		quitMenu()
+		return false
+	end
+	return true
+end
+local menuPClick = function ()
+	if ptrl == 1 then
+		DIR = fs.combine(tBackup.sDir, tBackup.sFile)
+		return true
+	elseif ptrl == 2 then
+		sPasteT = "/" .. fs.combine(tBackup.sDir, tBackup.sFile)
+		sPasteTN = tBackup.sFile
+		bIsCut = true
+		sMsgWillPrint = "1 folder added into clipboard"
+		quitMenu()
+		return false
+	elseif ptrl == 3 then
+		sPasteT = "/" .. fs.combine(tBackup.sDir, tBackup.sFile)
+		sPasteTN = tBackup.sFile
+		bIsCut = false
+		sMsgWillPrint = "1 folder added into clipboard"
+		quitMenu()
+		return false
+	elseif ptrl == 4 then
+		term.setCursorPos(1, nFiles + 3)
+		write("Are you sure to delete it?(y/n)")
+		local _sLine = string.lower(string.sub(io.read(), 1, 1))
+		if _sLine == "y" then
+			if fs.isReadOnly("/" .. fs.combine(tBackup.sDir, tBackup.sFile)) then
+				sMsgWillPrint = "Access denied"
+			else
+				runInUser("delete", "/" .. fs.combine(tBackup.sDir, tBackup.sFile))
+				sMsgWillPrint = "1 folder deleted"
+			end
+		end
+	elseif ptrl == 5 then
+		term.setCursorPos(1, nFiles + 3)
+		print("The size of the folder is " .. transSize(getDirSize("/" .. fs.combine(tBackup.sDir, tBackup.sFile))))
+		write("Press any key to continue")
+		waitKey()
+		quitMenu()
+		return false
+	elseif ptrl == 6 then
+		term.setCursorPos(1, nFiles + 3)
+		print("The free space of the currect folder is " .. transSize(fs.getFreeSpace("/" .. fs.combine(tBackup.sDir, tBackup.sFile))))
+		write("Press any key to continue")
+		waitKey()
+		quitMenu()
+		return false
+	end
+	sDir = DIR
+	if ptrl == 4 then
+		refFilLst()
+		if tBackup.nFiles > ly - 2 then
+			if tBackup.ptrl == tBackup.nFiles or tBackup.ptrf == tBackup.nFiles - ly + 3 then
+				ptrf = tBackup.ptrf - 1
+				ptrl = tBackup.ptrl - 1
+				ptry = tBackup.ptry
+			end
+		else
+			if tBackup.ptrl == tBackup.nFiles then
+				ptrf = tBackup.ptrf
+				ptrl = tBackup.ptrl - 1
+				ptry = tBackup.ptry - 1
+			else
+				ptrf = tBackup.ptrf
+				ptrl = tBackup.ptrl
+				ptry = tBackup.ptry
+			end
+		end
+		return true
+	end
+	return false
+end
+local menuEClick = function ()
+	local sPathD = disk.getMountPath(tFiles[ptrl])
+	if sPathD == string.sub(tBackup.sDir, 1, string.len(sPathD)) then
+		disk.eject(tFiles[ptrl])
+		if sDir ~= "" then
+			goup()
+		end
+		return true
+	end
+	disk.eject(tFiles[ptrl])
+	quitMenu()
+	return false
+end
+local menuSClick = function ()
+	sDir = tFiles[ptrl]
+	term.setCursorPos(1, 8)
+	if not fs.isDir(sDir) then
+		bIsSearch = true
+		local ssDir = "/" .. sDir
+		for i = string.len(ssDir), 1, -1 do
+			if string.sub(ssDir, i, i) == "/" then
+				if i == 1 then
+					bIsSearch = false
+				else
+					sFileNameS = string.sub(ssDir, i + 1)
+					break
+				end
+			end
+		end
+		goup()
+	else
+		DIR = sDir
+	end
+	return true
+end
+local menuClick = function ()
+	local vRet = false
+	if nMenuType == 1 then
+		vRet, vNNeedX = menuFClick()
+	elseif nMenuType == 2 then
+		vRet, vNNeedX = menuDClick()
+	elseif nMenuType == 3 then
+		vRet, vNNeedX = menuPClick()
+	elseif nMenuType == 4 then
+		vRet, vNNeedX = menuEClick()
+	elseif nMenuType == 5 then
+		vRet, vNNeedX = menuSClick()
+	end
+	if not vNNeedX then
+		nCursorX = 7
+	end
+	return vRet
+end
+local menuUpClick = function ( mx )
+	if mx > lx - 5 then
+		if bMenu then
+			quitMenu()
+		else
+			if sDir ~= "" then
+				goup()
+				return true
+			end
+		end
+	elseif mx == 1 then
+		if bMenu then
+			quitMenu()
+		else
+			if nRoutP > 1 then
+				nRoutP = nRoutP - 1
+				DIR = tRout[nRoutP]
+				bNBack = false
+				return true
+			end
+		end
+	elseif mx == 3 then
+		if not bMenu then
+			if tRout[nRoutP + 1] then
+				nRoutP = nRoutP + 1
+				DIR = tRout[nRoutP]
+				bNBack = false
+				return true
+			end
+		end
+	else
+		if not bMenu then
+			mx = mx - 4 + nShift
+			if (not bMenu) and (mx <= string.len(sDir) and string.sub(sDir, mx, mx) ~= "/") then
+				for i = mx, string.len(sDir) do
+					if string.sub (sDir, i, i) == "/" then
+						DIR = string.sub(sDir, 1, i - 1)
+						return true
+					end
+				end
+			end
+		end
+	end
+	return false
+end
+local menuDownClick = function ( mx )
+	if mx > lx - 5 and nDiskC ~= 0 then
+		menuStart(4)
+	end
+	return false
+end
+
+term.clear()
+term.setCursorPos(1, 1)
+term.setCursorBlink(false)
+
+while true do
+	sDir = DIR
+	if string.sub(sDir, 1, 1) == "/" then
+		sDir = string.sub(sDir, 2)
+	end
+	if string.sub(sDir, -1, -1) == "/" then
+		sDir = string.sub(sDir, 1, -2)
+	end
+	if not fs.exists(sDir) then
+		sMsgWillPrint = "Dir not exists"
+		sDir = ""
+		DIR = ""
+		if not bNBack then
+			tRout, nRoutP, bNBack = {}, 0, true
+		end
+	end
+	if tRout[nRoutP] ~= sDir then
+		nRoutP = nRoutP + 1
+		tRout[nRoutP] = sDir
+		if bNBack then
+			local i = nRoutP + 1
+			while tRout[i] do
+				tRout[i] = nil
+				i = i + 1
+			end
+		end
+	end
+	bNBack = true
+	tFiles, nFiles, tIsDir = {}, 0, {} 
+	nFolderC, nFileC = 0, 0
+	refFilLst()
+	dblClick, dblTimer = false, nil
+	ctrlClick = false
+	if bIsSearch then
+		for i = 1, nFiles do
+			if tFiles[i] == sFileNameS then
+				ptrf, ptrl, ptry = i, i, 3
+				if nFiles > ly - 2 then
+					while tFiles[ptrf + ly - 3] == nil do
+						ptrf = ptrf - 1
+						ptry = ptry + 1
+					end
+				end
+			end
+		end
+		sFileNameS = ""
+	else
+		ptrf, ptrl, ptry = 1, 1, 3
+	end
+	nShift = 0
+	if bMenu == false then
+		tMenuStack = {}
+		tBackup = {}
+	end
+	refScr()
+	writeCursor()
+	if bIsSearch then
+		bIsSearch = false
+	end
+	while true do
+		local e, key, mx, my = os.pullEventRaw()
+		if e == "terminate" then
+			onExit()
+			return
+		elseif e == "char" then
+			dblClick = false
+			if not ctrlClick then
+				key = string.lower(key)
+				if key == "q" then
+					if bMenu then
+						quitMenu()
+					else
+						onExit()
+						return
+					end
+				elseif key == "m" then
+					if not bMenu then
+						menuStart(2)
+					end
+				elseif key == "e" then
+					if tFiles[ptrl] then
+						if not fs.isDir("/" .. fs.combine(sDir, tFiles[ptrl])) then
+							runInUser("edit", "/" .. fs.combine(sDir, tFiles[ptrl]))
+							refDisk()
+							term.setCursorBlink(false)
+							refScr()
+							writeCursor()
+						end
+					end
+				end
+			end
+		elseif e == "key" then
+			dblClick = false
+			if key == keys.enter then
+				ctrlClick = false
+				if bMenu then
+					if menuClick() then
+						break
+					end
+				else
+					if tIsDir[ptrl] then
+						DIR = fs.combine( sDir, tFiles[ptrl] )
+						break
+					end
+					menuStart(1)
+				end
+			elseif key == keys.right then
+				ctrlClick = false
+				if bMenu then
+					if menuClick() then
+						break
+					end
+				elseif fs.isDir(fs.combine( sDir, tFiles[ptrl] )) then
+					DIR = fs.combine( sDir, tFiles[ptrl] )
+					break
+				end
+			elseif key == keys.left then
+				if bMenu then
+					quitMenu()
+				else
+					if sDir ~= "" then
+						goup()
+						return true
+					end
+				end
+			elseif key == keys.up then
+				ctrlClick = false
+				if ptrl == ptrf then
+					if ptrf ~= 1 then
+						ptrf = ptrf - 1
+						ptrl = ptrl - 1
+						refScr()
+						writeCursor()
+					end
+				else
+					clearCursor()
+					ptrl = ptrl - 1
+					ptry = ptry - 1
+					writeCursor()
+				end
+			elseif key == keys.down then
+				ctrlClick = false
+				if ptrl < nFiles then
+					if ptry == ly then
+						ptrf = ptrf + 1
+						ptrl = ptrl + 1
+						refScr()
+						writeCursor()
+					else
+						clearCursor()
+						ptrl = ptrl + 1
+						ptry = ptry + 1
+						writeCursor()
+					end
+				end
+			elseif key == keys.f5 then
+				break
+			elseif key == keys.leftCtrl or key == keys.rightCtrl then
+				ctrlClick = true
+			elseif key == keys.delete then
+				if tFiles[ptrl] then
+					if fs.isReadOnly("/" .. fs.combine(sDir, tFiles[ptrl])) then
+						printMsg("Access denied")
+					else
+						runInUser("delete", "/" .. fs.combine(sDir, tFiles[ptrl]))
+						if fs.exists("/" .. fs.combine(sDir, tFiles[ptrl])) then
+							if nFiles > ly - 2 then
+								if ptrl == nFiles or ptrf == nFiles - ly + 3 then
+									ptrf = ptrf - 1
+									ptrl = ptrl - 1
+									ptry = ptry
+								end
+							else
+								if ptrl == nFiles then
+									ptrf = ptrf
+									ptrl = ptrl - 1
+									ptry = ptry - 1
+								else
+									ptrf = ptrf
+									ptrl = ptrl
+									ptry = ptry
+								end
+							end
+							refFilLst()
+							refScr()
+							writeCursor()
+							printMsg("1 file deleted")
+						else
+							printMsg("Access denied")
+						end
+					end
+				end
+			elseif ctrlClick then
+				if key == keys.x then
+					sPasteT = "/" .. fs.combine(sDir, tFiles[ptrl])
+					sPasteTN = tFiles[ptrl]
+					bIsCut = true
+					printMsg("1 file added into clipboard")
+				elseif key == keys.c then
+					sPasteT = "/" .. fs.combine(sDir, tFiles[ptrl])
+					sPasteTN = tFiles[ptrl]
+					bIsCut = false
+					printMsg("1 file added into clipboard")
+				elseif key == keys.b then
+					if sPasteT ~= "" and fs.exists(sPasteT) then
+						local bNeedB = true
+						if sPasteT == string.sub("/" .. sDir, 1, string.len(sPasteT)) then
+							printMsg("Can't copy a folder inside itself")
+							bNeedB = false
+						elseif getSizeAdv(sPasteT) > fs.getFreeSpace("/" .. sDir) then
+							printMsg("Free space is not enough")
+							bNeedB = false
+						else
+							if fs.exists(fs.combine(sDir, sPasteTN)) then
+								if fs.isReadOnly("/" .. fs.combine(sDir, sPasteTN)) then
+									printMsg("Access denied")
+									bNeedB = false
+								else
+									if "/" .. sDir == string.sub(sPasteT, 1, string.len(sDir) + 1) then
+										printMsg("Access denied")
+										bNeedB = false
+									else
+										runInUser("delete", "/" .. fs.combine(sDir, sPasteTN))
+										if bIsCut then
+											runInUser("move", sPasteT, "/" .. sDir)
+										else
+											runInUser("copy", sPasteT, "/" .. sDir)
+										end
+										sMsgWillPrint = "1 file pasted"
+									end
+								end
+							else
+								if fs.isReadOnly("/" .. fs.combine(sDir, sPasteTN)) then
+									printMsg("Access denied")
+									bNeedB = false
+								else
+									if bIsCut then
+										runInUser("move", sPasteT, "/" .. sDir)
+									else
+										runInUser("copy", sPasteT, "/" .. sDir)
+									end
+									sMsgWillPrint = "1 file pasted"
+								end
+							end
+						end
+						if bNeedB then
+							sPasteT, sPasteTN, bIsCut = "", "", false
+							break
+						end
+					end
+				elseif key == keys.h then
+					bNHidden = not bNHidden
+					break
+				end
+				ctrlClick = false
+			end
+		elseif e == "mouse_click" then
+			ctrlClick = false
+			if my == 1 and key == 1 then
+				if menuUpClick(mx) then
+					break
+				end
+			elseif my == ly + 2 and key == 1 then
+				if menuDownClick(mx) then
+					break
+				end
+			elseif (mx == lx and my == 3) and key == 1 then
+				if ptrf ~= 1 then
+					ptrf = ptrf - 1
+					refScr()
+					ptry = ptry + 1
+					writeCursor()
+				end
+			elseif (mx == lx and my == ly) and key == 1 then
+				if nFiles > ly - 2 and ptrf < nFiles - ly + 3 then
+					ptrf = ptrf + 1
+					refScr()
+					ptry = ptry - 1
+					writeCursor()
+				end
+			elseif mx >= nCursorX and (my > 2 and my <= ly) then
+				if key == 1 and tFiles[ptrf + my - 3] then
+					if ptrf + my - 3 ~= ptrl then
+						dblClick = false
+					end
+					if dblClick or bMenu then
+						dblClick = false
+						if bMenu then
+							clearCursor()
+							ptry = my
+							ptrl = ptrf + my - 3
+							writeCursor()
+							if menuClick() then
+								break
+							end
+						else
+							if tIsDir[ptrl] then
+								DIR = fs.combine( sDir, tFiles[ptrl] )
+								break
+							end
+							term.clear()
+							term.setCursorPos(1, 1)
+							runInUser("/" .. fs.combine(sDir, tFiles[ptrl]))
+							for i = nativeTermElem, term.getStackElem() do
+								term.restore()
+							end
+							term.setCursorBlink(false)
+							term.setCursorPos(1, ly + 2)
+							write("Press any key to continue")
+							waitKey()
+							refDisk()
+							if not fs.exists(sDir) then
+								while not fs.exists(sDir) do
+									goup()
+									sDir = DIR
+								end
+								break
+							end
+							if DIR ~= sDir then
+								break
+							end
+							refScr()
+							writeCursor()
+						end
+					else
+						clearCursor()
+						ptry = my
+						ptrl = ptrf + my - 3
+						writeCursor()
+						dblClick = true
+						dblTimer = os.startTimer(0.4)
+					end
+				elseif key == 2 and (not bMenu) then
+					dblClick = false
+					if tFiles[ptrf + my - 3] and mx < nCursorX + string.len(tFiles[ptrf + my - 3]) then
+						clearCursor()
+						ptry = my
+						ptrl = ptrf + my - 3
+						writeCursor()
+						if tIsDir[ptrl] then
+							menuStart(3)
+						else
+							menuStart(1)
+						end
+					else
+						menuStart(2)
+					end
+				end
+			elseif mx < nCursorX - 1 then
+				if my > 2 and my <= ly then
+					if my == 3 then
+						DIR = "/"
+						break
+					elseif my == 4 then
+						DIR = sHomeDir
+						break
+					end
+				end
+			end
+		elseif e == "mouse_scroll" then
+			dblClick = false
+			ctrlClick = false
+			if key == -1 then
+				if ptrf ~= 1 then
+					ptrf = ptrf - 1
+					refScr()
+					ptry = ptry + 1
+					writeCursor()
+				end
+			elseif key == 1 then
+				if nFiles > ly - 2 and ptrf < nFiles - ly + 3 then
+					ptrf = ptrf + 1
+					refScr()
+					ptry = ptry - 1
+					writeCursor()
+				end
+			end
+		elseif e == "monitor_touch" then
+			ctrlClick = false
+			if mx == lx and my == 3 then
+				if ptrf ~= 1 then
+					ptrf = ptrf - 1
+					refScr()
+					ptry = ptry + 1
+					writeCursor()
+				end
+			elseif mx == lx and my == ly then
+				if nFiles > ly - 2 and ptrf < nFiles - ly + 3 then
+					ptrf = ptrf + 1
+					refScr()
+					ptry = ptry - 1
+					writeCursor()
+				end
+			elseif tFiles[ptrf + my - 3] and (my > 2 and my <= ly) then
+				if bMenu then
+					clearCursor()
+					ptry = my
+					ptrl = ptrf + my - 3
+					writeCursor()
+					if menuClick() then
+						break
+					end
+				else
+					clearCursor()
+					ptry = my
+					ptrl = ptrf + my - 3
+					writeCursor()
+					if tIsDir[ptrl] then
+						menuStart(3)
+					else
+						menuStart(1)
+					end
+				end
+			elseif my == 1 then
+				if menuUpClick(mx) then
+					break
+				end
+			elseif my == ly + 2 then
+				if nDiskC ~= 0 then
+					menuStart(4)
+				end
+			end
+		elseif e == "disk" then
+			do
+				if bMenu then
+					local tBackupT = {}
+					tBackupT.sDir = sDir
+					tBackupT.tFiles = tFiles
+					tBackupT.nFiles = nFiles
+					tBackupT.tIsDir = tIsDir
+					tBackupT.ptrf = ptrf
+					tBackupT.ptrl = ptrl
+					tBackupT.ptry = ptry
+					tBackupT.nFolderC = nFolderC
+					tBackupT.nFileC = nFileC
+					sDir = tBackup.sDir
+					refFilLst()
+					tBackup.tFiles = tFiles
+					tBackup.nFiles = nFiles
+					tBackup.tIsDir = tIsDir
+					tBackup.ptrf = 1
+					tBackup.ptrl = 1
+					tBackup.ptry = 3
+					tBackup.nFolderC = nFolderC
+					tBackup.nFileC = nFileC
+					sDir = tBackupT.sDir
+					tFiles = tBackupT.tFiles
+					nFiles = tBackupT.nFiles
+					tIsDir = tBackupT.tIsDir
+					ptrf = tBackupT.ptrf
+					ptrl = tBackupT.ptrl
+					ptry = tBackupT.ptry
+					nFolderC = tBackupT.nFolderC
+					nFileC = tBackupT.nFileC
+				else
+					refFilLst()
+					ptrf, ptrl, ptry = 1, 1, 3
+					refScr()
+					writeCursor()
+				end
+				local sMsg = "A disk"
+				local sDiskLabel = disk.getLabel(key)
+				if sDiskLabel and sDiskLabel ~= "" and string.len(sDiskLabel) < lx - 42 then
+					sMsg = sMsg .. " with label " .. sDiskLabel
+				end
+				sMsg = sMsg .. " inserted"
+				printMsg(sMsg)
+				tHasDisk[key] = key
+				nDiskC = nDiskC + 1
+			end
+		elseif e == "disk_eject" then
+			do
+				tHasDisk[key] = nil
+				nDiskC = nDiskC - 1
+				if bMenu then
+					printMsg("A disk removed")
+					local tBackupT = {}
+					local tempFunc1 = function ()
+						tBackupT.sDir = sDir
+						tBackupT.sFile = tFiles[ptrl]
+						tBackupT.tFiles = tFiles
+						tBackupT.nFiles = nFiles
+						tBackupT.tIsDir = tIsDir
+						tBackupT.ptrf = ptrf
+						tBackupT.ptrl = ptrl
+						tBackupT.ptry = ptry
+						tBackupT.nFolderC = nFolderC
+						tBackupT.nFileC = nFileC
+					end
+					local tempFunc2 = function ()
+						refFilLst()
+						tBackup.sDir = sDir
+						tBackup.sFile = tFiles[ptrl]
+						tBackup.tFiles = tFiles
+						tBackup.nFiles = nFiles
+						tBackup.tIsDir = tIsDir
+						tBackup.ptrf = 1
+						tBackup.ptrl = 1
+						tBackup.ptry = 3
+						tBackup.nFolderC = nFolderC
+						tBackup.nFileC = nFileC
+						sDir = tBackupT.sDir
+						sFile = tBackupT.tFiles[ptrl]
+						tFiles = tBackupT.tFiles
+						nFiles = tBackupT.nFiles
+						tIsDir = tBackupT.tIsDir
+						ptrf = tBackupT.ptrf
+						ptrl = tBackupT.ptrl
+						ptry = tBackupT.ptry
+						nFolderC = tBackupT.nFolderC
+						nFileC = tBackupT.nFileC
+					end
+					if not fs.exists(tBackup.sDir) then
+						tempFunc1()
+						sDir = tBackup.sDir
+						while not fs.exists(sDir) do
+							goup()
+							sDir = DIR
+						end
+						tempFunc2()
+					else
+						tempFunc1()
+						sDir = tBackup.sDir
+						tempFunc2()
+					end
+				else
+					if not fs.exists(sDir) then
+						sDir = DIR
+						tMenuStack = {}
+						tBackup = {}
+						bMenu = false
+						nMenuType = 0
+						while not fs.exists(sDir) do
+							goup()
+							sDir = DIR
+						end
+						sMsgWillPrint = "A disk removed"
+						break
+					else
+						refFilLst()
+						ptrf, ptrl, ptry = 1, 1, 3
+						refScr()
+						writeCursor()
+						printMsg("A disk removed")
+					end
+				end
+			end
+		elseif e == "timer" then
+			if key == dblTimer then
+				dblClick = false
+				dblTimer = nil
+			elseif key == msgTimer then
+				msgTimer = nil
+				term.setCursorPos(1, ly + 2)
+				for i = 1, lx - 12 do
+					write(" ")
+				end
+				term.setCursorPos(1, ly + 2)
+				write(tostring(nFolderC) .. " Folder(s), " .. tostring(nFileC) .. " File(s)")
+			end
+		elseif e == "alarm" and key == vAlarm then
+			timerAlarm()
+		elseif e == "message" and type(key) == "string" then
+			printMsg(key)
+		else
+			table.insert(tEventsS, {e, key, mx, my})
+		end
+	end
+end
