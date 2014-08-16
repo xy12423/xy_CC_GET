@@ -39,7 +39,7 @@ local function getSizeAdv( sPath )
 			local sThisF = tFiles[i]
 			local sThisA = fs.combine(sPath, sThisF)
 			if fs.isDir(sThisA) then
-				nRet = nRet + getDirSize(sThisA)
+				nRet = nRet + getSizeAdv(sThisA)
 			else
 				nRet = nRet + fs.getSize(sThisA)
 			end
@@ -149,22 +149,6 @@ local function findFile( sDir, sStr )
 		end
 	end
 	return tResult
-end
-
-local function getDirSize( sDir )
-	local nRet = 0
-	local tFiles = fs.list(sDir)
-	local nFiles = #tFiles
-	for i = 1, nFiles do
-		local sThisF = tFiles[i]
-		local sThisA = fs.combine(sDir, sThisF)
-		if fs.isDir(sThisA) then
-			nRet = nRet + getDirSize(sThisA)
-		else
-			nRet = nRet + fs.getSize(sThisA)
-		end
-	end
-	return nRet
 end
 
 local function printMsg( sMsg )
@@ -813,7 +797,7 @@ local menuDClick = function ()
 		return false, true
 	elseif ptrl == 6 then
 		term.setCursorPos(1, nFiles + 3)
-		print("The size of the currect folder is " .. transSize(getDirSize("/" .. tBackup.sDir)))
+		print("The size of the currect folder is " .. transSize(getSizeAdv("/" .. tBackup.sDir)))
 		write("Press any key to continue")
 		waitKey()
 		quitMenu()
@@ -860,7 +844,7 @@ local menuPClick = function ()
 		end
 	elseif ptrl == 5 then
 		term.setCursorPos(1, nFiles + 3)
-		print("The size of the folder is " .. transSize(getDirSize("/" .. fs.combine(tBackup.sDir, tBackup.sFile))))
+		print("The size of the folder is " .. transSize(getSizeAdv("/" .. fs.combine(tBackup.sDir, tBackup.sFile))))
 		write("Press any key to continue")
 		waitKey()
 		quitMenu()

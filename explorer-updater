@@ -1,0 +1,21 @@
+if fs.exists(fs.combine(shell.dir(), "explorer")) then
+	shell.run("delete", "explorer")
+end
+local tFH = fs.open("explorer", "w")
+if not tFH then
+	print("Failed to open file")
+	return
+end
+local tWH = http.get("https://raw.githubusercontent.com/xy12423/xy_CC_GET/master/explorer")
+if not tWH then
+	tFH.close()
+	print("Failed to link to remote server")
+	return
+end
+local sLine = tWH.readLine()
+while sLine do
+	tFH.writeLine(sLine)
+	sLine = tWH.readLine()
+end
+tFH.close()
+tWH.close()
