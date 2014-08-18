@@ -1079,7 +1079,7 @@ while true do
 					end
 				elseif key == "e" then
 					if tFiles[ptrl] then
-						if not fs.isDir("/" .. fs.combine(sDir, tFiles[ptrl])) then
+						if not tIsDir[ptrl] then
 							runInUser("edit", "/" .. fs.combine(sDir, tFiles[ptrl]))
 							refDisk()
 							term.setCursorBlink(false)
