@@ -1,6 +1,6 @@
 local tArgs = { ... }
 if #tArgs == 0 then
-	return shell.run("fg", shell.getRunningProgram(), "")
+	return shell.run("fg", shell.getRunningProgram(), "1")
 end
 
 local nativeTermElem = term.current()
