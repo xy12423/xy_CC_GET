@@ -328,6 +328,8 @@ local refScr = function ()
 	term.setCursorPos(lx - 7, 1)
 	write("|")
 	timerAlarm()
+	term.setCursorPos(lx - 1, 1)
+	write("|X")
 	--Write divider
 	term.setCursorPos(1, 2)
 	local tmp = str_repeat("-", lx)
@@ -424,7 +426,7 @@ local quitMenu = function ()
 	refScr()
 	writeCursor()
 end
-local goup = function ()
+local goUp = function ()
 	sDir = "/" .. sDir
 	for i = string.len(sDir), 1, -1 do
 		if string.sub(sDir, i, i) == "/" then
@@ -918,7 +920,7 @@ local menuSClick = function ()
 				end
 			end
 		end
-		goup()
+		goUp()
 	else
 		DIR = sDir
 	end
@@ -943,15 +945,8 @@ local menuClick = function ()
 	return vRet
 end
 local menuUpClick = function ( mx )
-	if mx > lx - 5 then
-		if bMenu then
-			quitMenu()
-		else
-			if sDir ~= "" then
-				goup()
-				return true
-			end
-		end
+	if mx == lx then
+		os.queueEvent("terminate")
 	elseif mx == 1 then
 		if bMenu then
 			quitMenu()
@@ -1131,7 +1126,7 @@ while true do
 					quitMenu()
 				else
 					if sDir ~= "" then
-						goup()
+						goUp()
 						return true
 					end
 				end
@@ -1329,7 +1324,7 @@ while true do
 							refDisk()
 							if not fs.exists(sDir) then
 								while not fs.exists(sDir) do
-									goup()
+									goUp()
 									sDir = DIR
 								end
 								break
@@ -1529,7 +1524,7 @@ while true do
 						tempFunc1()
 						sDir = tBackup.sDir
 						while not fs.exists(sDir) do
-							goup()
+							goUp()
 							sDir = DIR
 						end
 						tempFunc2()
@@ -1546,7 +1541,7 @@ while true do
 						bMenu = false
 						nMenuType = 0
 						while not fs.exists(sDir) do
-							goup()
+							goUp()
 							sDir = DIR
 						end
 						sMsgWillPrint = "A disk removed"
