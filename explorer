@@ -1,3 +1,8 @@
+local tArgs = { ... }
+if #tArgs == 0 then
+	return shell.run("fg", shell.getRunningProgram(), "")
+end
+
 local nativeTermElem = term.current()
 local lx, ly = term.getSize()
 ly = ly - 2
@@ -17,7 +22,7 @@ local bNHidden = false
 local vAlarm, nAlarmInterval = nil, 1 / 60
 local tEventsS = {}
 local runInUser = function ( sProgram, ... )
-	return shell.run( sProgram, ... )
+	return shell.run("fg", sProgram, ...)
 end
 
 local function str_repeat( sStr, nTimes )
@@ -518,8 +523,8 @@ local menuFClick = function ()
 		term.redirect(nativeTermElem)
 		term.setCursorBlink(false)
 		term.setCursorPos(1, ly + 2)
-		write("Press any key to continue")
-		waitKey()
+		--write("Press any key to continue")
+		--waitKey()
 	elseif ptrl == 2 then
 		term.setCursorPos(1, nFiles + 3)
 		write("Please input the arguments:")
@@ -534,8 +539,8 @@ local menuFClick = function ()
 		term.redirect(nativeTermElem)
 		term.setCursorBlink(false)
 		term.setCursorPos(1, ly + 2)
-		write("Press any key to continue")
-		waitKey()
+		--write("Press any key to continue")
+		--waitKey()
 	elseif ptrl == 3 then
 		for n,sSide in pairs(rs.getSides()) do
 			if peripheral.getType( sSide ) == "monitor" then
@@ -1289,8 +1294,8 @@ while true do
 							runInUser("/" .. fs.combine(sDir, tFiles[ptrl]))
 							term.redirect(nativeTermElem)
 							term.setCursorBlink(false)
-							term.setCursorPos(1, ly + 2)
-							write("Press any key to continue")
+							--term.setCursorPos(1, ly + 2)
+							--write("Press any key to continue")
 							waitKey()
 							refDisk()
 							if not fs.exists(sDir) then
@@ -1541,6 +1546,10 @@ while true do
 			end
 		elseif e == "alarm" and key == vAlarm then
 			timerAlarm()
+		elseif e == "term_resize" or e == "monitor_resize" then
+			lx, ly = term.getSize()
+			ly = ly - 2
+			refScr()
 		elseif e == "message" and type(key) == "string" then
 			printMsg(key)
 		else
