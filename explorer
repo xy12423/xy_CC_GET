@@ -290,7 +290,7 @@ local refFilLst = function ()
 			tIsDir[i] = true
 			nFolderC = nFolderC + 1
 			tBFiles[tptr] = tFiles[i]
-			tBIsDir[tptr] = tIsDir[i]
+			tBIsDir[tptr] = true
 			tptr = tptr + 1
 		else
 			nFileC = nFileC + 1
@@ -1579,6 +1579,7 @@ while true do
 			lx, ly = term.getSize()
 			ly = ly - 2
 			refScr()
+			writeCursor()
 		elseif e == "message" and type(key) == "string" then
 			printMsg(key)
 		else
