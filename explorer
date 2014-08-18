@@ -24,6 +24,9 @@ local tEventsS = {}
 local runInUser = function ( sProgram, ... )
 	return shell.run("fg", sProgram, ...)
 end
+local runInBackground = function ( sProgram, ... )
+	return shell.run(sProgram, ...)
+end
 
 local function str_repeat( sStr, nTimes )
 	local ret = ""
@@ -682,7 +685,7 @@ local menuDClick = function ()
 			sMsgWillPrint = "Operation Failed"
 		else
 			if _sLine ~= "" then
-				runInUser("mkdir", "/" .. fs.combine(tBackup.sDir, _sLine))
+				runInBackground("mkdir", "/" .. fs.combine(tBackup.sDir, _sLine))
 				if fs.isDir(fs.combine(tBackup.sDir, _sLine)) then
 					DIR = fs.combine(tBackup.sDir, _sLine)
 				else
@@ -717,16 +720,16 @@ local menuDClick = function ()
 						if fs.isReadOnly("/" .. fs.combine(tBackup.sDir, sPasteTN)) then
 							sMsgWillPrint = "Access denied"
 						else
-							runInUser("delete", "/" .. fs.combine(tBackup.sDir, sPasteTN))
+							runInBackground("delete", "/" .. fs.combine(tBackup.sDir, sPasteTN))
 							if fs.isDir(sPasteT) then
 								sMsgWillPrint = "1 folder pasted"
 							else
 								sMsgWillPrint = "1 file pasted"
 							end
 							if bIsCut then
-								runInUser("move", sPasteT, "/" .. tBackup.sDir)
+								runInBackground("move", sPasteT, "/" .. tBackup.sDir)
 							else
-								runInUser("copy", sPasteT, "/" .. tBackup.sDir)
+								runInBackground("copy", sPasteT, "/" .. tBackup.sDir)
 							end
 						end
 					end
@@ -740,9 +743,9 @@ local menuDClick = function ()
 							sMsgWillPrint = "1 file pasted"
 						end
 						if bIsCut then
-							runInUser("move", sPasteT, "/" .. tBackup.sDir)
+							runInBackground("move", sPasteT, "/" .. tBackup.sDir)
 						else
-							runInUser("copy", sPasteT, "/" .. tBackup.sDir)
+							runInBackground("copy", sPasteT, "/" .. tBackup.sDir)
 						end
 					end
 				end
@@ -857,7 +860,7 @@ local menuPClick = function ()
 			if fs.isReadOnly("/" .. fs.combine(tBackup.sDir, tBackup.sFile)) then
 				sMsgWillPrint = "Access denied"
 			else
-				runInUser("delete", "/" .. fs.combine(tBackup.sDir, tBackup.sFile))
+				runInBackground("delete", "/" .. fs.combine(tBackup.sDir, tBackup.sFile))
 				sMsgWillPrint = "1 folder deleted"
 			end
 		end
@@ -1176,7 +1179,7 @@ while true do
 					if fs.isReadOnly("/" .. fs.combine(sDir, tFiles[ptrl])) then
 						printMsg("Access denied")
 					else
-						runInUser("delete", "/" .. fs.combine(sDir, tFiles[ptrl]))
+						runInBackground("delete", "/" .. fs.combine(sDir, tFiles[ptrl]))
 						if fs.exists("/" .. fs.combine(sDir, tFiles[ptrl])) then
 							printMsg("Access denied")
 						else
@@ -1234,11 +1237,11 @@ while true do
 										printMsg("Access denied")
 										bNeedB = false
 									else
-										runInUser("delete", "/" .. fs.combine(sDir, sPasteTN))
+										runInBackground("delete", "/" .. fs.combine(sDir, sPasteTN))
 										if bIsCut then
-											runInUser("move", sPasteT, "/" .. sDir)
+											runInBackground("move", sPasteT, "/" .. sDir)
 										else
-											runInUser("copy", sPasteT, "/" .. sDir)
+											runInBackground("copy", sPasteT, "/" .. sDir)
 										end
 										sMsgWillPrint = "1 file pasted"
 									end
@@ -1249,9 +1252,9 @@ while true do
 									bNeedB = false
 								else
 									if bIsCut then
-										runInUser("move", sPasteT, "/" .. sDir)
+										runInBackground("move", sPasteT, "/" .. sDir)
 									else
-										runInUser("copy", sPasteT, "/" .. sDir)
+										runInBackground("copy", sPasteT, "/" .. sDir)
 									end
 									sMsgWillPrint = "1 file pasted"
 								end
