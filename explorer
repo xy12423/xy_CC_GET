@@ -305,6 +305,7 @@ local refFilLst = function ()
 	end
 	table.insert(tBFiles, 1, "..")
 	table.insert(tBIsDir, 1, true)
+	nFiles = nFiles + 1
 	tFiles = tBFiles
 	tIsDir = tBIsDir
 end
@@ -946,7 +947,11 @@ local menuClick = function ()
 end
 local menuUpClick = function ( mx )
 	if mx == lx then
-		os.queueEvent("terminate")
+		if bMenu then
+			quitMenu()
+		else
+			os.queueEvent("terminate")
+		end
 	elseif mx == 1 then
 		if bMenu then
 			quitMenu()
