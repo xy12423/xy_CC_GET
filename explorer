@@ -581,7 +581,7 @@ local menuFClick = function ()
 				sMsg = "Access denied"
 				sDeleteSuccessful = false
 			else
-				runInUser("delete", "/" .. fs.combine(tBackup.sDir, tBackup.sFile))
+				runInBackground("delete", "/" .. fs.combine(tBackup.sDir, tBackup.sFile))
 				sMsg = "1 file deleted"
 			end
 		end
@@ -600,7 +600,7 @@ local menuFClick = function ()
 			write("Press any key to continue")
 			waitKey()
 		else
-			runInUser("move", sSrc, sDst)
+			runInBackground("move", sSrc, sDst)
 			tBackup.tFiles[tBackup.ptrl] = _sLine
 		end
 	elseif ptrl == 9 then
