@@ -178,7 +178,7 @@ local function SPC( nLong )
 end
 
 local function timerAlarm()
-	term.setCursorPos(lx - 10, 1)
+	term.setCursorPos(lx - 6, 1)
 	term.setTextColor(sTextColor)
 	term.setBackgroundColor(sBackgroundColor)
 	local nTime = os.time()
@@ -303,6 +303,8 @@ local refFilLst = function ()
 			tptr = tptr + 1
 		end
 	end
+	table.insert(tBFiles, 1, "..")
+	table.insert(tBIsDir, 1, true)
 	tFiles = tBFiles
 	tIsDir = tBIsDir
 end
@@ -323,10 +325,9 @@ local refScr = function ()
 			write(sDir)
 		end
 	end
-	term.setCursorPos(lx - 11, 1)
+	term.setCursorPos(lx - 7, 1)
 	write("|")
 	timerAlarm()
-	write("|Go up")
 	--Write divider
 	term.setCursorPos(1, 2)
 	local tmp = str_repeat("-", lx)
@@ -674,12 +675,16 @@ local menuDClick = function ()
 		term.setCursorPos(1, nFiles + 3)
 		write("Please input the name of the folder:")
 		local _sLine = io.read()
-		if _sLine ~= "" then
-			runInUser("mkdir", "/" .. fs.combine(tBackup.sDir, _sLine))
-			if fs.isDir(fs.combine(tBackup.sDir, _sLine)) then
-				DIR = fs.combine(tBackup.sDir, _sLine)
-			else
-				sMsgWillPrint = "Operation Failed"
+		if _sLine == ".." or _sLine == "." then
+			sMsgWillPrint = "Operation Failed"
+		else
+			if _sLine ~= "" then
+				runInUser("mkdir", "/" .. fs.combine(tBackup.sDir, _sLine))
+				if fs.isDir(fs.combine(tBackup.sDir, _sLine)) then
+					DIR = fs.combine(tBackup.sDir, _sLine)
+				else
+					sMsgWillPrint = "Operation Failed"
+				end
 			end
 		end
 	elseif ptrl == 3 then
@@ -819,7 +824,13 @@ local menuDClick = function ()
 end
 local menuPClick = function ()
 	if ptrl == 1 then
-		DIR = fs.combine(tBackup.sDir, tBackup.sFile)
+		if tFiles[ptrl] == "." then
+			return false
+		elseif tFiles[ptrl] == ".." then
+			goUp()
+		else
+			DIR = fs.combine(tBackup.sDir, tBackup.sFile)
+		end
 		return true
 	elseif ptrl == 2 then
 		sPasteT = "/" .. fs.combine(tBackup.sDir, tBackup.sFile)
@@ -827,7 +838,7 @@ local menuPClick = function ()
 		bIsCut = true
 		sMsgWillPrint = "1 folder added into clipboard"
 		quitMenu()
-		return false
+		
 	elseif ptrl == 3 then
 		sPasteT = "/" .. fs.combine(tBackup.sDir, tBackup.sFile)
 		sPasteTN = tBackup.sFile
@@ -1015,7 +1026,7 @@ while true do
 		end
 	end
 	bNBack = true
-	tFiles, nFiles, tIsDir = {}, 0, {} 
+	tFiles, nFiles, tIsDir = {}, 0, {}
 	nFolderC, nFileC = 0, 0
 	refFilLst()
 	dblClick, dblTimer = false, nil
@@ -1088,7 +1099,13 @@ while true do
 					end
 				else
 					if tIsDir[ptrl] then
-						DIR = fs.combine( sDir, tFiles[ptrl] )
+						if tFiles[ptrl] ~= "." then
+							if tFiles[ptrl] == ".." then
+								goUp()
+							else
+								DIR = fs.combine( sDir, tFiles[ptrl] )
+							end
+						end
 						break
 					end
 					menuStart(1)
@@ -1099,8 +1116,14 @@ while true do
 					if menuClick() then
 						break
 					end
-				elseif fs.isDir(fs.combine( sDir, tFiles[ptrl] )) then
-					DIR = fs.combine( sDir, tFiles[ptrl] )
+				elseif tIsDir[ptrl] then
+					if tFiles[ptrl] ~= "." then
+						if tFiles[ptrl] == ".." then
+							goUp()
+						else
+							DIR = fs.combine( sDir, tFiles[ptrl] )
+						end
+					end
 					break
 				end
 			elseif key == keys.left then
@@ -1286,7 +1309,13 @@ while true do
 							end
 						else
 							if tIsDir[ptrl] then
-								DIR = fs.combine( sDir, tFiles[ptrl] )
+								if tFiles[ptrl] ~= "." then
+									if tFiles[ptrl] == ".." then
+										goUp()
+									else
+										DIR = fs.combine( sDir, tFiles[ptrl] )
+									end
+								end
 								break
 							end
 							term.clear()
@@ -1296,7 +1325,7 @@ while true do
 							term.setCursorBlink(false)
 							--term.setCursorPos(1, ly + 2)
 							--write("Press any key to continue")
-							waitKey()
+							--waitKey()
 							refDisk()
 							if not fs.exists(sDir) then
 								while not fs.exists(sDir) do
