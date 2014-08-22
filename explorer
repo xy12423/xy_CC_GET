@@ -555,7 +555,7 @@ local menuFClick = function ()
 				handle.clear()
 				handle.setCursorPos(1, 1)
 				term.redirect(handle)
-				runInUser("/" .. fs.combine(tBackup.sDir, tBackup.sFile))
+				runInBackground("/" .. fs.combine(tBackup.sDir, tBackup.sFile))
 				term.redirect(nativeTermElem)
 				break
 			end
@@ -673,8 +673,6 @@ local menuDClick = function ()
 			else
 				local tHF = fs.open(sAbsPath, "w")
 				tHF.close()
-				runInUser("edit", "/" .. sAbsPath)
-				refDisk()
 			end
 		end
 	elseif ptrl == 2 then
