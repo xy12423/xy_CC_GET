@@ -28,7 +28,7 @@ local runInBackground = function ( sProgram, ... )
 	return shell.run(sProgram, ...)
 end
 local runInMonitor = function ( sSide, sProgram, ... )
-	return shell.run("monitor", sSide, sProgram, ...)
+	return shell.run("bg", "monitor", sSide, sProgram, ...)
 end
 
 local function str_repeat( sStr, nTimes )
