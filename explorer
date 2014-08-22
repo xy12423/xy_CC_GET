@@ -27,6 +27,9 @@ end
 local runInBackground = function ( sProgram, ... )
 	return shell.run(sProgram, ...)
 end
+local runInMonitor = function ( sSide, sProgram, ... )
+	return shell.run("monitor", sSide, sProgram, ...)
+end
 
 local function str_repeat( sStr, nTimes )
 	local ret = ""
@@ -551,12 +554,7 @@ local menuFClick = function ()
 	elseif ptrl == 3 then
 		for n,sSide in pairs(rs.getSides()) do
 			if peripheral.getType( sSide ) == "monitor" then
-				local handle = peripheral.wrap(sSide)
-				handle.clear()
-				handle.setCursorPos(1, 1)
-				term.redirect(handle)
-				runInBackground("/" .. fs.combine(tBackup.sDir, tBackup.sFile))
-				term.redirect(nativeTermElem)
+				runInMonitor(sSide, "/" .. fs.combine(tBackup.sDir, tBackup.sFile))
 				break
 			end
 		end
