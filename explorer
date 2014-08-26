@@ -671,6 +671,7 @@ local menuDClick = function ()
 			else
 				local tHF = fs.open(sAbsPath, "w")
 				tHF.close()
+				quitMenu()
 			end
 		end
 	elseif ptrl == 2 then
