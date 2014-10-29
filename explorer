@@ -608,52 +608,34 @@ local menuFClick = function ()
 		waitKey()
 	end
 	refDisk()
-	sDir = DIR
-	if sDir ~= tBackup.sDir then
-		return true
+	local ret = false
+	if tBackup.sDir ~= DIR then
+		ret = true
 	elseif ptrl == 7 and sDeleteSuccessful then
 		refFilLst()
 		if tBackup.nFiles > ly - 2 then
 			if tBackup.ptrl == tBackup.nFiles or tBackup.ptrf == tBackup.nFiles - ly + 3 then
-				ptrf = tBackup.ptrf - 1
-				ptrl = tBackup.ptrl - 1
-				ptry = tBackup.ptry
+				tBackup.ptrf = tBackup.ptrf - 1
+				tBackup.ptrl = tBackup.ptrl - 1
+				tBackup.ptry = tBackup.ptry
 			end
 		else
 			if tBackup.ptrl == tBackup.nFiles then
-				ptrf = tBackup.ptrf
-				ptrl = tBackup.ptrl - 1
-				ptry = tBackup.ptry - 1
-			else
-				ptrf = tBackup.ptrf
-				ptrl = tBackup.ptrl
-				ptry = tBackup.ptry
+				tBackup.ptrf = tBackup.ptrf
+				tBackup.ptrl = tBackup.ptrl - 1
+				tBackup.ptry = tBackup.ptry - 1
 			end
 		end
-	else
-		tFiles = tBackup.tFiles
-		nFiles = tBackup.nFiles
-		tIsDir = tBackup.tIsDir
-		ptrf = tBackup.ptrf
-		ptrl = tBackup.ptrl
-		ptry = tBackup.ptry
 	end
-	nFolderC = tBackup.nFolderC
-	nFileC = tBackup.nFileC
-	if #tMenuStack == 0 then
-		bMenu = false
-		nMenuType = 0
-		nCursorX = 7
-		tBackup = {}
-	else
-		quitMenu()
-	end
-	refScr()
+	quitMenu()
 	if sMsg then
-		printMsg(sMsg)
+		if ret then
+			sMsgWillPrint = sMsg
+		else
+			printMsg(sMsg)
+		end
 	end
-	writeCursor()
-	return false
+	return ret
 end
 local menuDClick = function ()
 	if ptrl == 1 then
@@ -689,24 +671,25 @@ local menuDClick = function ()
 				end
 			end
 		end
+		quitMenu()
 	elseif ptrl == 3 then
+		quitMenu()
 		return true
 	elseif ptrl == 4 then
 		if sPasteT ~= "" and fs.exists(sPasteT) then
+			local sMsg = nil
 			if sPasteT == string.sub("/" .. tBackup.sDir, 1, string.len(sPasteT)) then
 				term.setCursorPos(1, nFiles + 3)
 				print("Can't copy a directory inside itself")
 				write("Press any key to continue")
 				waitKey()
-				quitMenu()
 			elseif getSizeAdv(sPasteT) > fs.getFreeSpace("/" .. tBackup.sDir) then
 				term.setCursorPos(1, nFiles + 3)
 				print("Free space is not enough")
 				write("Press any key to continue")
 				waitKey()
-				quitMenu()
 			elseif "/" .. tBackup.sDir == string.sub(sPasteT, 1, string.len(tBackup.sDir) + 1) then
-				sMsgWillPrint = "Access denied"
+				sMsg = "Access denied"
 			else
 				if fs.exists(fs.combine(tBackup.sDir, sPasteTN)) then
 					term.setCursorPos(1, nFiles + 3)
@@ -714,13 +697,13 @@ local menuDClick = function ()
 					local _sLine = string.lower(string.sub(io.read(), 1, 1))
 					if _sLine == "y" then
 						if fs.isReadOnly("/" .. fs.combine(tBackup.sDir, sPasteTN)) then
-							sMsgWillPrint = "Access denied"
+							sMsg = "Access denied"
 						else
 							runInBackground("delete", "/" .. fs.combine(tBackup.sDir, sPasteTN))
 							if fs.isDir(sPasteT) then
-								sMsgWillPrint = "1 folder pasted"
+								sMsg = "1 folder pasted"
 							else
-								sMsgWillPrint = "1 file pasted"
+								sMsg = "1 file pasted"
 							end
 							if bIsCut then
 								runInBackground("move", sPasteT, "/" .. tBackup.sDir)
@@ -731,12 +714,12 @@ local menuDClick = function ()
 					end
 				else
 					if fs.isReadOnly("/" .. fs.combine(tBackup.sDir, sPasteTN)) then
-						sMsgWillPrint = "Access denied"
+						sMsg = "Access denied"
 					else
 						if fs.isDir(sPasteT) then
-							sMsgWillPrint = "1 folder pasted"
+							sMsg = "1 folder pasted"
 						else
-							sMsgWillPrint = "1 file pasted"
+							sMsg = "1 file pasted"
 						end
 						if bIsCut then
 							runInBackground("move", sPasteT, "/" .. tBackup.sDir)
@@ -749,13 +732,15 @@ local menuDClick = function ()
 					sPasteT, sPasteTN, bIsCut = "", "", false
 				end
 			end
+			sMsgWillPrint = sMsg
 		else
 			term.setCursorPos(1, nFiles + 3)
 			print("There's nothing in the clipboard or the file was deleted")
 			write("Press any key to continue")
 			waitKey()
-			quitMenu()
+			
 		end
+		quitMenu()
 	elseif ptrl == 5 then
 		term.setCursorPos(1, nFiles + 3)
 		write("Please input the name of the file or folder:")
@@ -840,7 +825,7 @@ local menuPClick = function ()
 		bIsCut = true
 		sMsgWillPrint = "1 folder added into clipboard"
 		quitMenu()
-		
+		return false
 	elseif ptrl == 3 then
 		sPasteT = "/" .. fs.combine(tBackup.sDir, tBackup.sFile)
 		sPasteTN = tBackup.sFile
