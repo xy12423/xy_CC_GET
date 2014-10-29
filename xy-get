@@ -23,10 +23,10 @@ else
 		print("Failed to link to remote server")
 		return
 	end
-	if fs.exists(fs.combine(shell.dir(), "explorer")) then
-		shell.run("delete", "explorer")
+	if fs.exists(fs.combine(shell.dir(), argv[1])) then
+		shell.run("delete", argv[1])
 	end
-	local tFH = fs.open("explorer", "w")
+	local tFH = fs.open(argv[1], "w")
 	if not tFH then
 		tWH.close()
 		print("Failed to open file")

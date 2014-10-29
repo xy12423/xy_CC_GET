@@ -667,13 +667,12 @@ local menuDClick = function ()
 				print("Access denied")
 				write("Press any key to continue")
 				waitKey()
-				quitMenu()
 			else
 				local tHF = fs.open(sAbsPath, "w")
 				tHF.close()
-				quitMenu()
 			end
 		end
+		quitMenu()
 	elseif ptrl == 2 then
 		term.setCursorPos(1, nFiles + 3)
 		write("Please input the name of the folder:")
