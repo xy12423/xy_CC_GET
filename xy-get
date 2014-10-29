@@ -1,0 +1,42 @@
+local function printUsage()
+	print("Usage:")
+	print("    xy-get <name>")
+end
+
+local argv = { ... }
+local argc = #argv
+
+if argc == 0 then
+	printUsage()
+else
+	--[[
+	if argv[1] == "update" then
+		
+	elseif argv[1] == "upgrade" then
+		
+	elseif argv[1] == "get" then
+		
+	end
+	--]]
+	local tWH = http.get("https://raw.githubusercontent.com/xy12423/xy_CC_GET/master/" .. argv[1])
+	if not tWH then
+		print("Failed to link to remote server")
+		return
+	end
+	if fs.exists(fs.combine(shell.dir(), "explorer")) then
+		shell.run("delete", "explorer")
+	end
+	local tFH = fs.open("explorer", "w")
+	if not tFH then
+		tWH.close()
+		print("Failed to open file")
+		return
+	end
+	local sLine = tWH.readLine()
+	while sLine do
+		tFH.writeLine(sLine)
+		sLine = tWH.readLine()
+	end
+	tFH.close()
+	tWH.close()
+end
