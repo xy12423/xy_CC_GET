@@ -1,0 +1,21 @@
+local tArgs = { ... }
+local sChannel = tArgs[1]
+if sChannel == nil then
+	error("You must choose a channel")
+end
+sChannel = tonumber(sChannel)
+
+local handle = peripheral.wrap("top")
+peripheral.call("back", "open", sChannel)
+local n
+
+while true do
+	local e, p1, p2, p3, msg = os.pullEvent("modem_message")
+	n = tonumber(msg)
+	if n > 25 then
+		handle.setCommand("/playsound note.harp @a ~ ~ ~ 3 " .. tostring(2 ^ ((n - 26) / 12 - 1)) .. " 1")
+	else
+		handle.setCommand("/playsound note.bass @a ~ ~ ~ 3 " .. tostring(2 ^ ((n - 1) / 12 - 1)) .. " 1")
+	end
+	handle.runCommand()
+end
