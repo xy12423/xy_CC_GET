@@ -21,6 +21,7 @@ local bIsSearch, sFileNameS = false, ""
 local bNHidden = false
 local vAlarm, nAlarmInterval = nil, 1 / 60
 local tEventsS = {}
+local tSideLst = {{title = "/", path = "/"}}
 
 local function runInForeground ( sProgram, ... )
 	return shell.run("fg", sProgram, ...)
@@ -100,6 +101,7 @@ local function transSize( nSizeByte, bBinary )
 end
 
 local tHasDisk, nDiskC = {}, 0
+local refSideMenu = function () end
 local function refDisk( vNNeedMsg )
 	local tOldHD, nOldC = tHasDisk, nDiskC
 	tHasDisk, nDiskC = {}, 0
@@ -107,7 +109,13 @@ local function refDisk( vNNeedMsg )
 		if disk.isPresent(sSide) then
 			tHasDisk[sSide] = sSide
 			nDiskC = nDiskC + 1
+			if vNNeedMsg then
+				table.insert(tSideLst, {title = (disk.getLabel(sSide) or sSide), path = disk.getMountPath(sSide), disk_side = sSide})
+			end
 		end
+	end
+	if vNNeedMsg then
+		refSideMenu()
 	end
 	if not vNNeedMsg then
 		for n, sSide in pairs(rs.getSides()) do
@@ -119,7 +127,6 @@ local function refDisk( vNNeedMsg )
 		end
 	end
 end
-refDisk( true )
 
 local sTextColor, sDirColor, sFileColor, sBackgroundColor, sSelectedColor = colors.white, nil, nil, colors.black, nil
 
@@ -335,6 +342,16 @@ local function refFilLst ()
 	tFiles = tBFiles
 	tIsDir = tBIsDir
 end
+local function refSideMenu ()
+	term.setTextColor(sTextColor)
+	term.setBackgroundColor(sBackgroundColor)
+	local nPY = 3
+	for i, n in ipairs(tSideLst) do
+		term.setCursorPos(1, nPY)
+		write(string.sub(n.title, 1, nCursorX - 2))
+		nPY = nPY + 1
+	end
+end
 local function refScr ()
 	term.setTextColor(sTextColor)
 	term.setBackgroundColor(sBackgroundColor)
@@ -397,9 +414,8 @@ local function refScr ()
 			term.setCursorPos(nCursorX - 1, i)
 			term.write("|")
 		end
-		--Write menuLeft
-		term.setCursorPos(1, 3)
-		write("/")
+		--Write sideMenu
+		refSideMenu()
 	end
 	--Write divider
 	term.setCursorPos(1, ly + 1)
@@ -995,10 +1011,14 @@ local function menuDownClick ( mx )
 	end
 	return false
 end
-
+local function menuSideClick( my )
+	DIR = tSideLst[my - 2].path
+	peripheral.call("left", "write", tSideLst[my - 2].path)
+end
 term.clear()
 term.setCursorPos(1, 1)
 term.setCursorBlink(false)
+refDisk(true)
 
 while true do
 	sDir = DIR
@@ -1294,84 +1314,82 @@ while true do
 					ptry = ptry - 1
 					writeCursor()
 				end
-			elseif mx >= nCursorX and (my > 2 and my <= ly) then
-				if key == 1 and ptrf + my - 3 <= nFiles then
-					if ptrf + my - 3 ~= ptrl then
-						dblClick = false
-					end
-					if dblClick or bMenu then
-						dblClick = false
-						if bMenu then
+			elseif my > 2 and my <= ly then
+				if mx >= nCursorX then
+					if key == 1 and ptrf + my - 3 <= nFiles then
+						if ptrf + my - 3 ~= ptrl then
+							dblClick = false
+						end
+						if dblClick or bMenu then
+							dblClick = false
+							if bMenu then
+								clearCursor()
+								ptry = my
+								ptrl = ptrf + my - 3
+								writeCursor()
+								if menuClick() then
+									break
+								end
+							else
+								if tIsDir[ptrl] then
+									if tFiles[ptrl] ~= "." then
+										if tFiles[ptrl] == ".." then
+											goUp()
+										else
+											DIR = fs.combine( sDir, tFiles[ptrl] )
+										end
+									end
+									break
+								end
+								term.clear()
+								term.setCursorPos(1, 1)
+								runInForeground("/" .. fs.combine(sDir, tFiles[ptrl]))
+								runCleanUp()
+								term.setCursorBlink(false)
+								--term.setCursorPos(1, ly + 2)
+								--write("Press any key to continue")
+								--waitKey()
+								refDisk()
+								if not fs.exists(sDir) then
+									while not fs.exists(sDir) do
+										goUp()
+										sDir = DIR
+									end
+									break
+								end
+								if DIR ~= sDir then
+									break
+								end
+								refScr()
+								writeCursor()
+							end
+						else
 							clearCursor()
 							ptry = my
 							ptrl = ptrf + my - 3
 							writeCursor()
-							if menuClick() then
-								break
-							end
-						else
-							if tIsDir[ptrl] then
-								if tFiles[ptrl] ~= "." then
-									if tFiles[ptrl] == ".." then
-										goUp()
-									else
-										DIR = fs.combine( sDir, tFiles[ptrl] )
-									end
-								end
-								break
-							end
-							term.clear()
-							term.setCursorPos(1, 1)
-							runInForeground("/" .. fs.combine(sDir, tFiles[ptrl]))
-							runCleanUp()
-							term.setCursorBlink(false)
-							--term.setCursorPos(1, ly + 2)
-							--write("Press any key to continue")
-							--waitKey()
-							refDisk()
-							if not fs.exists(sDir) then
-								while not fs.exists(sDir) do
-									goUp()
-									sDir = DIR
-								end
-								break
-							end
-							if DIR ~= sDir then
-								break
-							end
-							refScr()
+							dblClick = true
+							dblTimer = os.startTimer(0.4)
+						end
+					elseif key == 2 and (not bMenu) then
+						dblClick = false
+						if ptrf + my - 3 <= nFiles and mx <= nCursorX + string.len(tFiles[ptrf + my - 3]) then
+							clearCursor()
+							ptry = my
+							ptrl = ptrf + my - 3
 							writeCursor()
-						end
-					else
-						clearCursor()
-						ptry = my
-						ptrl = ptrf + my - 3
-						writeCursor()
-						dblClick = true
-						dblTimer = os.startTimer(0.4)
-					end
-				elseif key == 2 and (not bMenu) then
-					dblClick = false
-					if ptrf + my - 3 <= nFiles and mx <= nCursorX + string.len(tFiles[ptrf + my - 3]) then
-						clearCursor()
-						ptry = my
-						ptrl = ptrf + my - 3
-						writeCursor()
-						if tIsDir[ptrl] then
-							menuStart(3)
+							if tIsDir[ptrl] then
+								menuStart(3)
+							else
+								menuStart(1)
+							end
 						else
-							menuStart(1)
+							menuStart(2)
 						end
-					else
-						menuStart(2)
 					end
-				end
-			elseif mx < nCursorX - 1 then
-				if my > 2 and my <= ly then
-					if my == 3 then
-						DIR = "/"
-						break
-					end
+				elseif mx < nCursorX - 1 and key == 1 then
+					menuSideClick(my)
+					break
 				end
 			end
 		elseif e == "mouse_scroll" then
@@ -1408,33 +1426,42 @@ while true do
 					ptry = ptry - 1
 					writeCursor()
 				end
-			elseif tFiles[ptrf + my - 3] and (my > 2 and my <= ly) then
-				if bMenu then
-					clearCursor()
-					ptry = my
-					ptrl = ptrf + my - 3
-					writeCursor()
-					if menuClick() then
-						break
-					end
-				else
-					clearCursor()
-					ptry = my
-					ptrl = ptrf + my - 3
-					writeCursor()
-					if tIsDir[ptrl] then
-						menuStart(3)
+			elseif my > 2 and my <= ly then
+				if mx >= nCursorX then
+					if bMenu then
+						clearCursor()
+						ptry = my
+						ptrl = ptrf + my - 3
+						writeCursor()
+						if menuClick() then
+							break
+						end
 					else
-						menuStart(1)
+						if ptrf + my - 3 <= nFiles and mx <= nCursorX + string.len(tFiles[ptrf + my - 3]) then
+							clearCursor()
+							ptry = my
+							ptrl = ptrf + my - 3
+							writeCursor()
+							if tIsDir[ptrl] then
+								menuStart(3)
+							else
+								menuStart(1)
+							end
+						else
+							menuStart(2)
+						end
 					end
+				elseif mx < nCursorX - 1 then
+					menuSideClick(my)
+					break
 				end
 			elseif my == 1 then
 				if menuUpClick(mx) then
 					break
 				end
 			elseif my == ly + 2 then
-				if nDiskC ~= 0 then
-					menuStart(4)
+				if menuDownClick(mx) then
+					break
 				end
 			end
 		elseif e == "disk" then
@@ -1484,6 +1511,8 @@ while true do
 				printMsg(sMsg)
 				tHasDisk[key] = key
 				nDiskC = nDiskC + 1
+				table.insert(tSideLst, {title = (sDiskLabel or key), path = disk.getMountPath(key), disk_side = key})
+				refSideMenu()
 			end
 		elseif e == "disk_eject" then
 			do
@@ -1561,6 +1590,13 @@ while true do
 						printMsg("A disk removed")
 					end
 				end
+				for i, n in ipairs(tSideLst) do
+					if n.disk_side == key then
+						table.remove(i)
+						break
+					end
+				end
+				refSideMenu()
 			end
 		elseif e == "timer" then
 			if key == dblTimer then
