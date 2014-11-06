@@ -21,14 +21,34 @@ local bIsSearch, sFileNameS = false, ""
 local bNHidden = false
 local vAlarm, nAlarmInterval = nil, 1 / 60
 local tEventsS = {}
-local runInUser = function ( sProgram, ... )
+
+local function runInForeground ( sProgram, ... )
 	return shell.run("fg", sProgram, ...)
 end
-local runInBackground = function ( sProgram, ... )
+local function runInBackground ( sProgram, ... )
 	return shell.run(sProgram, ...)
 end
-local runInMonitor = function ( sSide, sProgram, ... )
+local function runInMonitor ( sSide, sProgram, ... )
 	return shell.run("bg", "monitor", sSide, sProgram, ...)
+end
+local function runCleanUp()
+	term.redirect(nativeTermElem)
+end
+
+local function move( sSrc, sDest )
+	runInBackground("move", sSrc, sDest)
+end
+local function copy( sSrc, sDest )
+	runInBackground("copy", sSrc, sDest)
+end
+local function mkdir( sDir )
+	runInBackground("mkdir", sDir)
+end
+local function delete( sPath )
+	runInBackground("delete", sPath)
+end
+local function edit( sPath )
+	runInBackground("edit", sPath)
 end
 
 local function str_repeat( sStr, nTimes )
@@ -275,7 +295,7 @@ elseif nStyle == 1 then
 		end
 	end
 end
-local refFilLst = function ()
+local function refFilLst ()
 	nFolderC, nFileC = 0, 0
 	tFiles = fs.list( sDir )
 	table.sort(tFiles)
@@ -315,7 +335,7 @@ local refFilLst = function ()
 	tFiles = tBFiles
 	tIsDir = tBIsDir
 end
-local refScr = function ()
+local function refScr ()
 	term.setTextColor(sTextColor)
 	term.setBackgroundColor(sBackgroundColor)
 	term.clear()
@@ -396,7 +416,7 @@ local refScr = function ()
 	term.setCursorPos(lx - 5, ly + 2)
 	write("|Eject")
 end
-local quitMenu = function ()
+local function quitMenu ()
 	if #tMenuStack == 0 then
 		sDir = DIR
 		if string.sub(sDir, 1, 1) == "/" then
@@ -433,7 +453,7 @@ local quitMenu = function ()
 	refScr()
 	writeCursor()
 end
-local goUp = function ()
+local function goUp ()
 	sDir = "/" .. sDir
 	for i = string.len(sDir), 1, -1 do
 		if string.sub(sDir, i, i) == "/" then
@@ -446,7 +466,7 @@ local goUp = function ()
 		end
 	end
 end
-local menuStart = function ( nMenuT )
+local function menuStart ( nMenuT )
 	local bFailed = false
 	if not bMenu then
 		bMenu = true
@@ -523,14 +543,14 @@ local menuStart = function ( nMenuT )
 	refScr()
 	writeCursor()
 end
-local menuFClick = function ()
+local function menuFClick ()
 	local sMsg = nil
 	local sDeleteSuccessful = true
 	if ptrl == 1 then
 		term.clear()
 		term.setCursorPos(1, 1)
-		runInUser("/" .. fs.combine(tBackup.sDir, tBackup.sFile))
-		term.redirect(nativeTermElem)
+		runInForeground("/" .. fs.combine(tBackup.sDir, tBackup.sFile))
+		runCleanUp()
 		term.setCursorBlink(false)
 		term.setCursorPos(1, ly + 2)
 		--write("Press any key to continue")
@@ -545,8 +565,8 @@ local menuFClick = function ()
 		for match in string.gmatch( _sLine, "[^ \t]+" ) do
 			table.insert(tWords, match)
 		end
-		runInUser("/" .. fs.combine(tBackup.sDir, tBackup.sFile), unpack( tWords, 1 ))
-		term.redirect(nativeTermElem)
+		runInForeground("/" .. fs.combine(tBackup.sDir, tBackup.sFile), unpack( tWords, 1 ))
+		runCleanUp()
 		term.setCursorBlink(false)
 		term.setCursorPos(1, ly + 2)
 		--write("Press any key to continue")
@@ -559,7 +579,7 @@ local menuFClick = function ()
 			end
 		end
 	elseif ptrl == 4 then
-		runInUser("edit", "/" .. fs.combine(tBackup.sDir, tBackup.sFile))
+		edit("/" .. fs.combine(tBackup.sDir, tBackup.sFile))
 	elseif ptrl == 5 then
 		sPasteT = "/" .. fs.combine(tBackup.sDir, tBackup.sFile)
 		sPasteTN = tBackup.sFile
@@ -579,8 +599,13 @@ local menuFClick = function ()
 				sMsg = "Access denied"
 				sDeleteSuccessful = false
 			else
-				runInBackground("delete", "/" .. fs.combine(tBackup.sDir, tBackup.sFile))
-				sMsg = "1 file deleted"
+				delete("/" .. fs.combine(tBackup.sDir, tBackup.sFile))
+				if fs.exists("/" .. fs.combine(tBackup.sDir, tBackup.sFile)) then
+					sMsg = "Unknown Failure"
+					sDeleteSuccessful = false
+				else
+					sMsg = "1 file deleted"
+				end
 			end
 		end
 	elseif ptrl == 8 then
@@ -598,7 +623,7 @@ local menuFClick = function ()
 			write("Press any key to continue")
 			waitKey()
 		else
-			runInBackground("move", sSrc, sDst)
+			move(sSrc, sDst)
 			tBackup.tFiles[tBackup.ptrl] = _sLine
 		end
 	elseif ptrl == 9 then
@@ -612,7 +637,6 @@ local menuFClick = function ()
 	if tBackup.sDir ~= DIR then
 		ret = true
 	elseif ptrl == 7 and sDeleteSuccessful then
-		refFilLst()
 		if tBackup.nFiles > ly - 2 then
 			if tBackup.ptrl == tBackup.nFiles or tBackup.ptrf == tBackup.nFiles - ly + 3 then
 				tBackup.ptrf = tBackup.ptrf - 1
@@ -637,7 +661,8 @@ local menuFClick = function ()
 	end
 	return ret
 end
-local menuDClick = function ()
+local function menuDClick ()
+	local bQuit = true
 	if ptrl == 1 then
 		term.setCursorPos(1, nFiles + 3)
 		write("Please input the name of the file:")
@@ -654,7 +679,6 @@ local menuDClick = function ()
 				tHF.close()
 			end
 		end
-		quitMenu()
 	elseif ptrl == 2 then
 		term.setCursorPos(1, nFiles + 3)
 		write("Please input the name of the folder:")
@@ -663,7 +687,7 @@ local menuDClick = function ()
 			sMsgWillPrint = "Operation Failed"
 		else
 			if _sLine ~= "" then
-				runInBackground("mkdir", "/" .. fs.combine(tBackup.sDir, _sLine))
+				mkdir("/" .. fs.combine(tBackup.sDir, _sLine))
 				if fs.isDir(fs.combine(tBackup.sDir, _sLine)) then
 					DIR = fs.combine(tBackup.sDir, _sLine)
 				else
@@ -671,7 +695,6 @@ local menuDClick = function ()
 				end
 			end
 		end
-		quitMenu()
 	elseif ptrl == 3 then
 		quitMenu()
 		return true
@@ -699,16 +722,16 @@ local menuDClick = function ()
 						if fs.isReadOnly("/" .. fs.combine(tBackup.sDir, sPasteTN)) then
 							sMsg = "Access denied"
 						else
-							runInBackground("delete", "/" .. fs.combine(tBackup.sDir, sPasteTN))
+							delete("/" .. fs.combine(tBackup.sDir, sPasteTN))
 							if fs.isDir(sPasteT) then
 								sMsg = "1 folder pasted"
 							else
 								sMsg = "1 file pasted"
 							end
 							if bIsCut then
-								runInBackground("move", sPasteT, "/" .. tBackup.sDir)
+								move(sPasteT, "/" .. tBackup.sDir)
 							else
-								runInBackground("copy", sPasteT, "/" .. tBackup.sDir)
+								copy(sPasteT, "/" .. tBackup.sDir)
 							end
 						end
 					end
@@ -722,9 +745,9 @@ local menuDClick = function ()
 							sMsg = "1 file pasted"
 						end
 						if bIsCut then
-							runInBackground("move", sPasteT, "/" .. tBackup.sDir)
+							move(sPasteT, "/" .. tBackup.sDir)
 						else
-							runInBackground("copy", sPasteT, "/" .. tBackup.sDir)
+							copy(sPasteT, "/" .. tBackup.sDir)
 						end
 					end
 				end
@@ -738,9 +761,7 @@ local menuDClick = function ()
 			print("There's nothing in the clipboard or the file was deleted")
 			write("Press any key to continue")
 			waitKey()
-			
 		end
-		quitMenu()
 	elseif ptrl == 5 then
 		term.setCursorPos(1, nFiles + 3)
 		write("Please input the name of the file or folder:")
@@ -797,52 +818,55 @@ local menuDClick = function ()
 		print("The size of the currect folder is " .. transSize(getSizeAdv("/" .. tBackup.sDir)))
 		write("Press any key to continue")
 		waitKey()
-		quitMenu()
 		return false
 	elseif ptrl == 7 then
 		term.setCursorPos(1, nFiles + 3)
 		print("The free space of the currect folder is " .. transSize(fs.getFreeSpace("/" .. tBackup.sDir)))
 		write("Press any key to continue")
 		waitKey()
-		quitMenu()
 		return false
+	end
+	if bQuit then
+		quitMenu()
 	end
 	return true
 end
-local menuPClick = function ()
+local function menuPClick ()
+	local bRet, bQuit = false, true
+	local sDeleteSuccessful = true
 	if ptrl == 1 then
-		if tFiles[ptrl] == "." then
-			return false
-		elseif tFiles[ptrl] == ".." then
+		if tBackup.tFiles[tBackup.ptrl] == ".." then
 			goUp()
 		else
 			DIR = fs.combine(tBackup.sDir, tBackup.sFile)
 		end
-		return true
+		bRet = true
 	elseif ptrl == 2 then
 		sPasteT = "/" .. fs.combine(tBackup.sDir, tBackup.sFile)
 		sPasteTN = tBackup.sFile
 		bIsCut = true
 		sMsgWillPrint = "1 folder added into clipboard"
-		quitMenu()
-		return false
 	elseif ptrl == 3 then
 		sPasteT = "/" .. fs.combine(tBackup.sDir, tBackup.sFile)
 		sPasteTN = tBackup.sFile
 		bIsCut = false
 		sMsgWillPrint = "1 folder added into clipboard"
-		quitMenu()
-		return false
 	elseif ptrl == 4 then
 		term.setCursorPos(1, nFiles + 3)
 		write("Are you sure to delete it?(y/n)")
 		local _sLine = string.lower(string.sub(io.read(), 1, 1))
 		if _sLine == "y" then
 			if fs.isReadOnly("/" .. fs.combine(tBackup.sDir, tBackup.sFile)) then
-				sMsgWillPrint = "Access denied"
+				sMsg = "Access denied"
+				sDeleteSuccessful = false
 			else
-				runInBackground("delete", "/" .. fs.combine(tBackup.sDir, tBackup.sFile))
-				sMsgWillPrint = "1 folder deleted"
+				delete("/" .. fs.combine(tBackup.sDir, tBackup.sFile))
+				if fs.exists("/" .. fs.combine(tBackup.sDir, tBackup.sFile)) then
+					sMsg = "Unknown Failure"
+					sDeleteSuccessful = false
+				else
+					sMsg = "1 file deleted"
+				end
 			end
 		end
 	elseif ptrl == 5 then
@@ -850,46 +874,39 @@ local menuPClick = function ()
 		print("The size of the folder is " .. transSize(getSizeAdv("/" .. fs.combine(tBackup.sDir, tBackup.sFile))))
 		write("Press any key to continue")
 		waitKey()
-		quitMenu()
-		return false
 	elseif ptrl == 6 then
 		term.setCursorPos(1, nFiles + 3)
 		print("The free space of the currect folder is " .. transSize(fs.getFreeSpace("/" .. fs.combine(tBackup.sDir, tBackup.sFile))))
 		write("Press any key to continue")
 		waitKey()
-		quitMenu()
-		return false
 	end
-	sDir = DIR
-	if ptrl == 4 then
-		refFilLst()
+	refDisk()
+	if ptrl == 4 and sDeleteSuccessful then
 		if tBackup.nFiles > ly - 2 then
 			if tBackup.ptrl == tBackup.nFiles or tBackup.ptrf == tBackup.nFiles - ly + 3 then
-				ptrf = tBackup.ptrf - 1
-				ptrl = tBackup.ptrl - 1
-				ptry = tBackup.ptry
+				tBackup.ptrf = tBackup.ptrf - 1
+				tBackup.ptrl = tBackup.ptrl - 1
+				tBackup.ptry = tBackup.ptry
 			end
 		else
 			if tBackup.ptrl == tBackup.nFiles then
-				ptrf = tBackup.ptrf
-				ptrl = tBackup.ptrl - 1
-				ptry = tBackup.ptry - 1
-			else
-				ptrf = tBackup.ptrf
-				ptrl = tBackup.ptrl
-				ptry = tBackup.ptry
+				tBackup.ptrf = tBackup.ptrf
+				tBackup.ptrl = tBackup.ptrl - 1
+				tBackup.ptry = tBackup.ptry - 1
 			end
 		end
-		return true
 	end
-	return false
+	if bQuit then
+		quitMenu()
+	end
+	return ret
 end
-local menuEClick = function ()
+local function menuEClick ()
 	disk.eject(tFiles[ptrl])
 	quitMenu()
 	return false
 end
-local menuSClick = function ()
+local function menuSClick ()
 	sDir = tFiles[ptrl]
 	term.setCursorPos(1, 8)
 	if not fs.isDir(sDir) then
@@ -909,10 +926,11 @@ local menuSClick = function ()
 	else
 		DIR = sDir
 	end
+	quitMenu()
 	return true
 end
-local menuClick = function ()
-	local vRet = false
+local function menuClick ()
+	local vRet, vNNeedX = false, false
 	if nMenuType == 1 then
 		vRet, vNNeedX = menuFClick()
 	elseif nMenuType == 2 then
@@ -929,7 +947,7 @@ local menuClick = function ()
 	end
 	return vRet
 end
-local menuUpClick = function ( mx )
+local function menuUpClick ( mx )
 	if mx == lx then
 		if bMenu then
 			quitMenu()
@@ -971,7 +989,7 @@ local menuUpClick = function ( mx )
 	end
 	return false
 end
-local menuDownClick = function ( mx )
+local function menuDownClick ( mx )
 	if mx > lx - 5 and nDiskC ~= 0 then
 		menuStart(4)
 	end
@@ -1064,7 +1082,7 @@ while true do
 				elseif key == "e" then
 					if tFiles[ptrl] then
 						if not tIsDir[ptrl] then
-							runInUser("edit", "/" .. fs.combine(sDir, tFiles[ptrl]))
+							edit("/" .. fs.combine(sDir, tFiles[ptrl]))
 							refDisk()
 							term.setCursorBlink(false)
 							refScr()
@@ -1160,7 +1178,7 @@ while true do
 					if fs.isReadOnly("/" .. fs.combine(sDir, tFiles[ptrl])) then
 						printMsg("Access denied")
 					else
-						runInBackground("delete", "/" .. fs.combine(sDir, tFiles[ptrl]))
+						delete("/" .. fs.combine(sDir, tFiles[ptrl]))
 						if fs.exists("/" .. fs.combine(sDir, tFiles[ptrl])) then
 							printMsg("Access denied")
 						else
@@ -1218,11 +1236,11 @@ while true do
 										printMsg("Access denied")
 										bNeedB = false
 									else
-										runInBackground("delete", "/" .. fs.combine(sDir, sPasteTN))
+										delete("/" .. fs.combine(sDir, sPasteTN))
 										if bIsCut then
-											runInBackground("move", sPasteT, "/" .. sDir)
+											move(sPasteT, "/" .. sDir)
 										else
-											runInBackground("copy", sPasteT, "/" .. sDir)
+											copy(sPasteT, "/" .. sDir)
 										end
 										sMsgWillPrint = "1 file pasted"
 									end
@@ -1233,9 +1251,9 @@ while true do
 									bNeedB = false
 								else
 									if bIsCut then
-										runInBackground("move", sPasteT, "/" .. sDir)
+										move(sPasteT, "/" .. sDir)
 									else
-										runInBackground("copy", sPasteT, "/" .. sDir)
+										copy(sPasteT, "/" .. sDir)
 									end
 									sMsgWillPrint = "1 file pasted"
 								end
@@ -1277,7 +1295,7 @@ while true do
 					writeCursor()
 				end
 			elseif mx >= nCursorX and (my > 2 and my <= ly) then
-				if key == 1 and tFiles[ptrf + my - 3] then
+				if key == 1 and ptrf + my - 3 <= nFiles then
 					if ptrf + my - 3 ~= ptrl then
 						dblClick = false
 					end
@@ -1304,8 +1322,8 @@ while true do
 							end
 							term.clear()
 							term.setCursorPos(1, 1)
-							runInUser("/" .. fs.combine(sDir, tFiles[ptrl]))
-							term.redirect(nativeTermElem)
+							runInForeground("/" .. fs.combine(sDir, tFiles[ptrl]))
+							runCleanUp()
 							term.setCursorBlink(false)
 							--term.setCursorPos(1, ly + 2)
 							--write("Press any key to continue")
@@ -1334,7 +1352,7 @@ while true do
 					end
 				elseif key == 2 and (not bMenu) then
 					dblClick = false
-					if tFiles[ptrf + my - 3] and mx < nCursorX + string.len(tFiles[ptrf + my - 3]) then
+					if ptrf + my - 3 <= nFiles and mx <= nCursorX + string.len(tFiles[ptrf + my - 3]) then
 						clearCursor()
 						ptry = my
 						ptrl = ptrf + my - 3
