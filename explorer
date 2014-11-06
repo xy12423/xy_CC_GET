@@ -899,7 +899,7 @@ local function menuPClick ()
 	if bQuit then
 		quitMenu()
 	end
-	return ret
+	return bRet
 end
 local function menuEClick ()
 	disk.eject(tFiles[ptrl])
