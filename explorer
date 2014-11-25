@@ -1013,7 +1013,6 @@ local function menuDownClick ( mx )
 end
 local function menuSideClick( my )
 	DIR = tSideLst[my - 2].path
-	peripheral.call("left", "write", tSideLst[my - 2].path)
 end
 term.clear()
 term.setCursorPos(1, 1)
