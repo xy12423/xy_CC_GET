@@ -165,24 +165,19 @@ end
 local function findFile( sDir, sStr )
 	local tResult = {}
 	local tFiles = fs.list(sDir)
-	local nFiles = #tFiles
 	local nLStr = string.len(sStr)
-	local nTRP = 1
-	for i = 1, nFiles do
-		local sThisF = tFiles[i]
+	for i, sThisF in ipairs(tFiles) do
 		local sThisA = fs.combine(sDir, sThisF)
 		for j = 1, string.len(sThisF) - nLStr + 1 do
 			if string.sub(sThisF, j, j + nLStr - 1) == sStr then
-				tResult[nTRP] = sThisA
-				nTRP = nTRP + 1
+				table.insert(tResult, sThisA)
 				break
 			end
 		end
 		if fs.isDir(sThisA) then
 			local tResN = findFile(sThisA, sStr)
-			for i = 1, #tResN do
-				tResult[nTRP] = tResN[i]
-				nTRP = nTRP + 1
+			for i, n in ipairs(tResN) do
+				table.insert(tResult, n)
 			end
 		end
 	end
