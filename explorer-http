@@ -3,6 +3,10 @@ if #tArgs == 0 then
 	return shell.run("fg", shell.getRunningProgram(), "1")
 end
 
+local sRemoteAdd = "http://xy12423.eicp.net:4825/"
+local sLocalDefault, sPathTemp = "/download", "/download/temp"
+local nativeFS = fs
+
 local function remoteList( sPath )
 	local tHandle = http.get(sRemoteAdd .. fs.combine(sPath, "_index"))
 	if tHandle == nil or tHandle.getResponseCode() ~= 200 then
@@ -23,11 +27,36 @@ local function remoteList( sPath )
 	table.sort(tFile)
 	return tDir, tFile
 end
+local function remoteDownload( sRemote, sLocal )
+	local tHandle = http.get(sRemoteAdd .. fs.combine("/", sRemote))
+	if tHandle == nil or tHandle.getResponseCode() ~= 200 then
+		return false
+	end
+	local sName = fs.getName(sRemote)
+	if sLocal == nil then
+		sLocal = sLocalDefault
+	end
+	if nativeFS.exists(sLocal) == false then
+		if nativeFS.isReadOnly("/" .. fs.getDir(sLocal)) then
+			tHandle.close()
+			return false
+		end
+		nativeFS.makeDir(sLocal)
+	elseif nativeFS.isDir(sLocal) == false then
+		tHandle.close()
+		return false
+	end
+	local tFH = nativeFS.open(fs.combine(sLocal, sName), "w")
+	if tFH == nil then
+		tHandle.close()
+		return false
+	end
+	tFH.write(tHandle.readAll())
+	tFH.close()
+	return true
+end
 
-local nativeFS = fs
 fs = {}
-
-local sRemoteAdd = "http://xy12423.eicp.net:4825/"
 
 fs.getName = nativeFS.getName
 fs.combine = nativeFS.combine
@@ -674,7 +703,7 @@ local function menuFClick ()
 			end
 		end
 	elseif ptrl == 4 then
-		edit("/" .. fs.combine(tBackup.sDir, tBackup.sFile))
+		remoteDownload("/" .. fs.combine(tBackup.sDir, tBackup.sFile))
 	elseif ptrl == 5 then
 		term.setCursorPos(1, nFiles + 3)
 		print("The size of the file is " .. transSize(fs.getSize("/" .. fs.combine(tBackup.sDir, tBackup.sFile))))

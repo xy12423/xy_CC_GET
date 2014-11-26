@@ -673,7 +673,7 @@ local function menuFClick ()
 	return ret
 end
 local function menuDClick ()
-	local bQuit = true
+	local bRet, bQuit = true, true
 	if ptrl == 1 then
 		term.setCursorPos(1, nFiles + 3)
 		write("Please input the name of the file:")
@@ -829,18 +829,18 @@ local function menuDClick ()
 		print("The size of the currect folder is " .. transSize(getSizeAdv("/" .. tBackup.sDir)))
 		write("Press any key to continue")
 		waitKey()
-		return false
+		bRet = false
 	elseif ptrl == 7 then
 		term.setCursorPos(1, nFiles + 3)
 		print("The free space of the currect folder is " .. transSize(fs.getFreeSpace("/" .. tBackup.sDir)))
 		write("Press any key to continue")
 		waitKey()
-		return false
+		bRet = false
 	end
 	if bQuit then
 		quitMenu()
 	end
-	return true
+	return bRet
 end
 local function menuPClick ()
 	local bRet, bQuit = false, true
