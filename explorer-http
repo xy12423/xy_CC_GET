@@ -6,6 +6,7 @@ end
 local sRemoteAdd = "http://xy12423.eicp.net:4825/"
 local sLocalDefault, sPathTemp = "/download", "/download/temp"
 local nativeFS = fs
+local newFS = {}
 
 local function remoteList( sPath )
 	local tHandle = http.get(sRemoteAdd .. fs.combine(sPath, "_index"))
@@ -30,38 +31,35 @@ end
 local function remoteDownload( sRemote, sLocal )
 	local tHandle = http.get(sRemoteAdd .. fs.combine("/", sRemote))
 	if tHandle == nil or tHandle.getResponseCode() ~= 200 then
-		return false
+		return false, "HTTP error"
 	end
 	local sName = fs.getName(sRemote)
 	if sLocal == nil then
 		sLocal = sLocalDefault
 	end
 	if nativeFS.exists(sLocal) == false then
-		if nativeFS.isReadOnly("/" .. fs.getDir(sLocal)) then
-			tHandle.close()
-			return false
+		local bOK, sErr = pcall( function () nativeFS.makeDir(sLocal) end )
+		if (not bOK) or nativeFS.exists(sLocal) == false then
+			return false, "Error while creating directory"
 		end
-		nativeFS.makeDir(sLocal)
 	elseif nativeFS.isDir(sLocal) == false then
 		tHandle.close()
-		return false
+		return false, "This is a file, not a dir"
 	end
 	local tFH = nativeFS.open(fs.combine(sLocal, sName), "w")
 	if tFH == nil then
 		tHandle.close()
-		return false
+		return false, "Access denied"
 	end
 	tFH.write(tHandle.readAll())
 	tFH.close()
 	return true
 end
 
-fs = {}
-
-fs.getName = nativeFS.getName
-fs.combine = nativeFS.combine
-fs.getDir = nativeFS.getDir
-fs.list = function ( sPath )
+newFS.getName = nativeFS.getName
+newFS.combine = nativeFS.combine
+newFS.getDir = nativeFS.getDir
+newFS.list = function ( sPath )
 	local tHandle = http.get(sRemoteAdd .. fs.combine(sPath, "_index"))
 	if tHandle == nil or tHandle.getResponseCode() ~= 200 then
 		return {}
@@ -76,7 +74,7 @@ fs.list = function ( sPath )
 	tHandle.close()
 	return tRet
 end
-fs.exists = function ( sPath )
+newFS.exists = function ( sPath )
 	local tHandle = http.get(sRemoteAdd .. fs.combine("/", sPath))
 	if tHandle == nil or tHandle.getResponseCode() ~= 200 then
 		return false
@@ -84,7 +82,7 @@ fs.exists = function ( sPath )
 	tHandle.close()
 	return true
 end
-fs.isDir = function ( sPath )
+newFS.isDir = function ( sPath )
 	if string.len(sPath) == 0 or sPath == "/" then
 		return true
 	end
@@ -104,9 +102,9 @@ fs.isDir = function ( sPath )
 	tHandle.close()
 	return false
 end
-fs.isReadOnly = function () return true end
-fs.getDrive = function () return "remote computer" end
-fs.getSize = function ( sPath )
+newFS.isReadOnly = function () return true end
+newFS.getDrive = function () return "remote computer" end
+newFS.getSize = function ( sPath )
 	local tHandle = http.get(sRemoteAdd .. fs.combine("/", sPath))
 	if tHandle == nil or tHandle.getResponseCode() ~= 200 then
 		return 0
@@ -122,13 +120,15 @@ fs.getSize = function ( sPath )
 	nativeFS.delete("/.expl_http_tmp")
 	return nSize
 end
-fs.getFreeSpace = function () return 0 end
-fs.makeDir = function () end
-fs.move = function () end
-fs.copy = function () end
-fs.delete = function () end
-fs.open = function () end
-fs.find = function () end
+newFS.getFreeSpace = function () return 0 end
+newFS.makeDir = function () end
+newFS.move = function () end
+newFS.copy = function () end
+newFS.delete = function () end
+newFS.open = function () end
+newFS.find = function () end
+
+fs = newFS
 
 local nativeTermElem = term.current()
 local lx, ly = term.getSize()
@@ -151,13 +151,24 @@ local tEventsS = {}
 local tSideLst = {{title = "/", path = "/"}}
 
 local function runInForeground ( sProgram, ... )
-	return shell.run("fg", sProgram, ...)
-end
-local function runInBackground ( sProgram, ... )
-	return shell.run(sProgram, ...)
+	local bResult, nErr = remoteDownload(sProgram, sPathTemp)
+	if bResult == false then
+		return bResult, nErr
+	end
+	fs = nativeFS
+	local ok, err = shell.run("fg", fs.combine(sPathTemp, fs.getName(sProgram)), ...)
+	fs = newFS
+	nativeFS.delete(fs.combine(sPathTemp, fs.getName(sProgram)))
 end
 local function runInMonitor ( sSide, sProgram, ... )
-	return shell.run("bg", "monitor", sSide, sProgram, ...)
+	local bResult, nErr = remoteDownload(sProgram, sPathTemp)
+	if bResult == false then
+		return bResult, nErr
+	end
+	fs = nativeFS
+	local ok, err = shell.run("bg", "monitor", sSide, fs.combine(sPathTemp, fs.getName(sProgram)), ...)
+	fs = newFS
+	nativeFS.delete(fs.combine(sPathTemp, fs.getName(sProgram)))
 end
 local function runCleanUp()
 	term.redirect(nativeTermElem)
