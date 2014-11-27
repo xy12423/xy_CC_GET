@@ -644,6 +644,13 @@ local function menuFClick ()
 		waitKey()
 	end
 	refDisk()
+	if not fs.exists(tBackup.sDir) then
+		sDir = tBackup.sDir
+		while fs.exists(sDir) == false do
+			goUp()
+			sDir = DIR
+		end
+	end
 	local ret = false
 	if tBackup.sDir ~= DIR then
 		ret = true

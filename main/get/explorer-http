@@ -77,7 +77,10 @@ end
 newFS.exists = function ( sPath )
 	local tHandle = http.get(sRemoteAdd .. fs.combine("/", sPath))
 	if tHandle == nil or tHandle.getResponseCode() ~= 200 then
-		return false
+		tHandle = http.get(sRemoteAdd .. fs.combine(sPath, "_index"))
+		if tHandle == nil or tHandle.getResponseCode() ~= 200 then
+			return false
+		end
 	end
 	tHandle.close()
 	return true
@@ -222,34 +225,6 @@ local function transSize( nSizeByte, bBinary )
 	return tostring(math.floor(nSizeByte * 1000 + 0.5) / 1000) .. " " .. tLevel[nLevel]
 end
 
-local tHasDisk, nDiskC = {}, 0
-local refSideMenu = function () end
-local function refDisk( vNNeedMsg )
-	local tOldHD, nOldC = tHasDisk, nDiskC
-	tHasDisk, nDiskC = {}, 0
-	for n, sSide in pairs(rs.getSides()) do
-		if disk.isPresent(sSide) then
-			tHasDisk[sSide] = sSide
-			nDiskC = nDiskC + 1
-			if vNNeedMsg then
-				table.insert(tSideLst, {title = (disk.getLabel(sSide) or sSide), path = disk.getMountPath(sSide), disk_side = sSide})
-			end
-		end
-	end
-	if vNNeedMsg then
-		refSideMenu()
-	end
-	if not vNNeedMsg then
-		for n, sSide in pairs(rs.getSides()) do
-			if tOldHD[sSide] and (not tHasDisk[sSide]) then
-				os.queueEvent("disk_eject", sSide)
-			elseif (not tOldHD[sSide]) and tHasDisk[sSide] then
-				os.queueEvent("disk", sSide)
-			end
-		end
-	end
-end
-
 local sTextColor, sDirColor, sFileColor, sBackgroundColor, sSelectedColor = colors.white, nil, nil, colors.black, nil
 
 if term.isColor() then
@@ -270,13 +245,6 @@ local function waitKey()
 			break
 		else
 			table.insert(tEvents, {e, p1, p2, p3, p4})
-			if e == "disk" then
-				tHasDisk[p1] = p1
-				nDiskC = nDiskC + 1
-			elseif e == "disk_eject" then
-				tHasDisk[p1] = nil
-				nDiskC = nDiskC - 1
-			end
 		end
 	end
 	for i, n in ipairs(tEvents) do
@@ -653,14 +621,6 @@ local function menuStart ( nMenuT )
 		else
 			bFailed = true
 		end
-	elseif nMenuT == 4 then
-		sDir = "Eject"
-		tFiles = {}
-		local i = 0
-		for n, sSide in pairs(tHasDisk) do
-			i = i + 1
-			tFiles[i] = sSide
-		end
 	end
 	nFiles = #tFiles
 	tIsDir = {}
@@ -721,7 +681,6 @@ local function menuFClick ()
 		write("Press any key to continue")
 		waitKey()
 	end
-	refDisk()
 	local ret = false
 	if tBackup.sDir ~= DIR then
 		ret = true
@@ -812,7 +771,6 @@ local function menuPClick ()
 		write("Press any key to continue")
 		waitKey()
 	end
-	refDisk()
 	if bQuit then
 		quitMenu()
 	end
@@ -915,7 +873,6 @@ end
 term.clear()
 term.setCursorPos(1, 1)
 term.setCursorBlink(false)
-refDisk(true)
 
 while true do
 	sDir = DIR
@@ -1143,17 +1100,6 @@ while true do
 								runInForeground("/" .. fs.combine(sDir, tFiles[ptrl]))
 								runCleanUp()
 								term.setCursorBlink(false)
-								refDisk()
-								if not fs.exists(sDir) then
-									while not fs.exists(sDir) do
-										goUp()
-										sDir = DIR
-									end
-									break
-								end
-								if DIR ~= sDir then
-									break
-								end
 								refScr()
 								writeCursor()
 							end
