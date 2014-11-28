@@ -89,21 +89,12 @@ newFS.isDir = function ( sPath )
 	if string.len(sPath) == 0 or sPath == "/" then
 		return true
 	end
-	local sParent = fs.getDir(sPath)
-	local sName = fs.getName(sPath)
-	local tHandle = http.get(sRemoteAdd .. fs.combine(sParent, "_index"))
+	local tHandle = http.get(sRemoteAdd .. fs.combine(sPath, "_index"))
 	if tHandle == nil or tHandle.getResponseCode() ~= 200 then
-		return nil
-	end
-	local nDirs = tonumber(tHandle.readLine())
-	for i = 1, nDirs do
-		if tHandle.readLine() == sName then
-			tHandle.close()
-			return true
-		end
+		return false
 	end
 	tHandle.close()
-	return false
+	return true
 end
 newFS.isReadOnly = function () return true end
 newFS.getDrive = function () return "remote computer" end
@@ -190,16 +181,12 @@ local function getSizeAdv( sPath )
 	if fs.isDir(sPath) == false then
 		nRet = fs.getSize(sPath)
 	else
-		local tFiles = fs.list(sPath)
-		local nFiles = #tFiles
-		for i = 1, nFiles do
-			local sThisF = tFiles[i]
-			local sThisA = fs.combine(sPath, sThisF)
-			if fs.isDir(sThisA) then
-				nRet = nRet + getSizeAdv(sThisA)
-			else
-				nRet = nRet + fs.getSize(sThisA)
-			end
+		local tDirs, tFiles = remoteList(sDir)
+		for i, n in ipairs(tDirs) do
+			nRet = nRet + getSizeAdv(fs.combine(sPath, n))
+		end
+		for i, n in ipairs(tFiles) do
+			nRet = nRet + fs.getSize(fs.combine(sPath, n))
 		end
 	end
 	return nRet
@@ -393,44 +380,40 @@ elseif nStyle == 1 then
 	end
 end
 local function refFilLst ()
-	nFolderC, nFileC = 0, 0
-	tFiles = fs.list( sDir )
-	table.sort(tFiles)
+	local tDir, tFile = remoteList(sDir)
+	table.sort(tDir)
+	table.sort(tFile)
 	if not bNHidden then
-		for i, n in ipairs(tFiles) do
+		local tB = {}
+		for i, n in ipairs(tDir) do
 			if string.sub( n, 1, 1 ) == "." then
-				table.remove(tFiles, i)
+				table.insert(tB, i)
 			end
 		end
-	end
-	nFiles = #tFiles
-	tIsDir = {}
-	local tBFiles = {}
-	local tBIsDir = {}
-	local tptr = 1
-	for i = 1, nFiles do
-		if fs.isDir(fs.combine(sDir, tFiles[i])) then
-			tIsDir[i] = true
-			nFolderC = nFolderC + 1
-			tBFiles[tptr] = tFiles[i]
-			tBIsDir[tptr] = true
-			tptr = tptr + 1
-		else
-			nFileC = nFileC + 1
+		for i, n in ipairs(tB) do
+			table.remove(tDir, n - i + 1)
+		end
+		tB = {}
+		for i, n in ipairs(tFile) do
+			if string.sub( n, 1, 1 ) == "." then
+				table.insert(tB, i)
+			end
+		end
+		for i, n in ipairs(tB) do
+			table.remove(tFile, n - i + 1)
 		end
 	end
-	for i = 1, nFiles do
-		if not tIsDir[i] then
-			tBFiles[tptr] = tFiles[i]
-			tBIsDir[tptr] = tIsDir[i]
-			tptr = tptr + 1
-		end
+	nFolderC, nFileC = #tDir, #tFile
+	tFiles = {".."}
+	nFiles = nFolderC + nFileC + 1
+	tIsDir = {true}
+	for i, n in ipairs(tDir) do
+		table.insert(tFiles, n)
+		table.insert(tIsDir, true)
 	end
-	table.insert(tBFiles, 1, "..")
-	table.insert(tBIsDir, 1, true)
-	nFiles = nFiles + 1
-	tFiles = tBFiles
-	tIsDir = tBIsDir
+	for i, n in ipairs(tFile) do
+		table.insert(tFiles, n)
+	end
 end
 local function refSideMenu ()
 	term.setTextColor(sTextColor)
@@ -558,16 +541,8 @@ local function quitMenu ()
 	writeCursor()
 end
 local function goUp ()
-	sDir = "/" .. sDir
-	for i = string.len(sDir), 1, -1 do
-		if string.sub(sDir, i, i) == "/" then
-			if i == 1 then
-				DIR = ""
-			else
-				DIR = string.sub(sDir, 2, i - 1)
-				return
-			end
-		end
+	if sDir ~= "" then
+		DIR = fs.getDir(sDir)
 	end
 end
 local function menuStart ( nMenuT )
@@ -786,17 +761,7 @@ local function menuSClick ()
 	term.setCursorPos(1, 8)
 	if not fs.isDir(sDir) then
 		bIsSearch = true
-		local ssDir = "/" .. sDir
-		for i = string.len(ssDir), 1, -1 do
-			if string.sub(ssDir, i, i) == "/" then
-				if i == 1 then
-					bIsSearch = false
-				else
-					sFileNameS = string.sub(ssDir, i + 1)
-					break
-				end
-			end
-		end
+		sFileNameS = fs.getName(sDir)
 		goUp()
 	else
 		DIR = sDir
@@ -910,13 +875,16 @@ while true do
 	if bIsSearch then
 		for i = 1, nFiles do
 			if tFiles[i] == sFileNameS then
-				ptrf, ptrl, ptry = i, i, 3
-				if nFiles > ly - 2 then
+				if nFiles <= ly - 2 then
+					ptrf, ptrl, ptry = 1, i, i + 2
+				else
+					ptrf, ptrl, ptry = i, i, 3
 					while tFiles[ptrf + ly - 3] == nil do
 						ptrf = ptrf - 1
 						ptry = ptry + 1
 					end
 				end
+				break
 			end
 		end
 		sFileNameS = ""
