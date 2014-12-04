@@ -342,6 +342,11 @@ local function refSideMenu ()
 		write(string.sub(n.title, 1, nCursorX - 2))
 		nPY = nPY + 1
 	end
+	local sSPC = str_repeat(" ", nCursorX - 2)
+	for i = nPY, ly do
+		term.setCursorPos(1, nPY)
+		write(sSPC)
+	end
 end
 local function refScr ()
 	term.setTextColor(sTextColor)
@@ -992,7 +997,9 @@ local function menuDownClick ( mx )
 	return false
 end
 local function menuSideClick( my )
-	DIR = tSideLst[my - 2].path
+	if type(tSideLst[my - 2]) == "table" then
+		DIR = tSideLst[my - 2].path
+	end
 end
 term.clear()
 term.setCursorPos(1, 1)
@@ -1576,7 +1583,7 @@ while true do
 				end
 				for i, n in ipairs(tSideLst) do
 					if n.disk_side == key then
-						table.remove(i)
+						table.remove(tSideLst, i)
 						break
 					end
 				end
