@@ -674,6 +674,7 @@ local function menuFClick ()
 end
 local function menuDClick ()
 	local bRet, bQuit = true, true
+	local sMsg = nil
 	if ptrl == 1 then
 		term.setCursorPos(1, nFiles + 3)
 		write("Please input the name of the file:")
@@ -711,19 +712,10 @@ local function menuDClick ()
 		return true
 	elseif ptrl == 4 then
 		if sPasteT ~= "" and fs.exists(sPasteT) then
-			local sMsg = nil
-			if sPasteT == string.sub("/" .. tBackup.sDir, 1, string.len(sPasteT)) then
-				term.setCursorPos(1, nFiles + 3)
-				print("Can't copy a directory inside itself")
-				write("Press any key to continue")
-				waitKey()
+			if sPasteT == string.sub("/" .. fs.combine("/", tBackup.sDir), 1, string.len(sPasteT)) then
+				sMsg = "Can't copy a folder into itself"
 			elseif getSizeAdv(sPasteT) > fs.getFreeSpace("/" .. tBackup.sDir) then
-				term.setCursorPos(1, nFiles + 3)
-				print("Free space is not enough")
-				write("Press any key to continue")
-				waitKey()
-			elseif "/" .. tBackup.sDir == string.sub(sPasteT, 1, string.len(tBackup.sDir) + 1) then
-				sMsg = "Access denied"
+				sMsg = "Free space is not enough"
 			else
 				if fs.exists(fs.combine(tBackup.sDir, sPasteTN)) then
 					term.setCursorPos(1, nFiles + 3)
@@ -766,7 +758,6 @@ local function menuDClick ()
 					sPasteT, sPasteTN, bIsCut = "", "", false
 				end
 			end
-			sMsgWillPrint = sMsg
 		else
 			term.setCursorPos(1, nFiles + 3)
 			print("There's nothing in the clipboard or the file was deleted")
@@ -839,6 +830,9 @@ local function menuDClick ()
 	end
 	if bQuit then
 		quitMenu()
+		if bRet then
+			sMsgWillPrint = sMsg
+		end
 	end
 	return bRet
 end
@@ -1231,7 +1225,7 @@ while true do
 				elseif key == keys.b then
 					if sPasteT ~= "" and fs.exists(sPasteT) then
 						local bNeedB = true
-						if sPasteT == string.sub("/" .. sDir, 1, string.len(sPasteT)) then
+						if sPasteT == string.sub("/" .. fs.combine("/", sDir), 1, string.len(sPasteT)) then
 							printMsg("Can't copy a folder inside itself")
 							bNeedB = false
 						elseif getSizeAdv(sPasteT) > fs.getFreeSpace("/" .. sDir) then
@@ -1243,18 +1237,13 @@ while true do
 									printMsg("Access denied")
 									bNeedB = false
 								else
-									if "/" .. sDir == string.sub(sPasteT, 1, string.len(sDir) + 1) then
-										printMsg("Access denied")
-										bNeedB = false
+									delete("/" .. fs.combine(sDir, sPasteTN))
+									if bIsCut then
+										move(sPasteT, "/" .. sDir)
 									else
-										delete("/" .. fs.combine(sDir, sPasteTN))
-										if bIsCut then
-											move(sPasteT, "/" .. sDir)
-										else
-											copy(sPasteT, "/" .. sDir)
-										end
-										sMsgWillPrint = "1 file pasted"
+										copy(sPasteT, "/" .. sDir)
 									end
+									sMsgWillPrint = "1 file pasted"
 								end
 							else
 								if fs.isReadOnly("/" .. fs.combine(sDir, sPasteTN)) then
