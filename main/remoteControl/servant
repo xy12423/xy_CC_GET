@@ -1,3 +1,33 @@
+local function open()
+	local bOpen, sFreeSide = false, nil
+	for n,sSide in pairs(rs.getSides()) do	
+		if peripheral.getType( sSide ) == "modem" then
+			sFreeSide = sSide
+			if rednet.isOpen( sSide ) then
+				bOpen = true
+				break
+			end
+		end
+	end
+	
+	if not bOpen then
+		if sFreeSide then
+			print( "No modem active. Opening "..sFreeSide.." modem" )
+			rednet.open( sFreeSide )
+			sOpenedSide = sFreeSide
+			return true
+		else
+			print( "No modem attached" )
+			return false
+		end
+	end
+	return true
+end
+
+if not open() then
+	return
+end
+
 local tEvents = {}
 
 local function onExit()

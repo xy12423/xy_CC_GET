@@ -21,7 +21,6 @@ while true do
 	local e, p1, p2, p3, p4 = os.pullEvent()
 	if e == "key" and nID ~= -1 then
 		if p1 == keys.w then
-			print("a")
 			rednet.send(nID, "turtle.forward()")
 		elseif p1 == keys.s then
 			rednet.send(nID, "turtle.back()")
