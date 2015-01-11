@@ -1,0 +1,68 @@
+local tEvents = {}
+local nID = -1
+
+local function onExit()
+	for i, n in ipairs(tEvents) do
+		os.queueEvent(unpack(n, 1))
+	end
+	term.clear()
+	term.setCursorPos(1, 1)
+end
+
+rednet.open("back")
+rednet.host("remoteControl", "xy_m_1")
+
+local tImage = { {}, { 0, 0, 0, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, }, { 0, 0, 0, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, }, { 0, 0, 0, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, }, { 0, 0, 0, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, }, { 0, 0, 0, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, }, {}, { 0, 0, 0, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, }, { 0, 0, 0, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, }, { 0, 0, 0, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, }, { 0, 0, 0, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, }, { 0, 0, 0, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, }, {}, { 0, 0, 0, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, }, { 0, 0, 0, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, }, { 0, 0, 0, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, }, { 0, 0, 0, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, }, { 0, 0, 0, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, },}
+term.clear()
+term.setCursorPos(1, 1)
+paintutils.drawImage(tImage, 1, 1)
+
+while true do
+	local e, p1, p2, p3, p4 = os.pullEvent()
+	if e == "key" and nID != -1 then
+		if p1 == keys.w then
+			rednet.send(nID, "turtle.forward()")
+		else if p1 == keys.s then
+			rednet.send(nID, "turtle.back()")
+		else if p1 == keys.a then
+			rednet.send(nID, "turtle.up()")
+		else if p1 == keys.d then
+			rednet.send(nID, "turtle.down()")
+		else if p1 == keys.q then
+			rednet.send(nID, "turtle.turnLeft()")
+		else if p1 == keys.e then
+			rednet.send(nID, "turtle.turnRight()")
+		end
+	elseif e == "mouse_click" and nID != -1 then
+		if p3 > 3 and p3 < 24 then
+			if p1 == 1 then
+				if p3 > 1 and p3 < 7 then
+					rednet.send(nID, "turtle.digUp()")
+				elseif p3 > 7 and p3 < 13 then
+					rednet.send(nID, "turtle.dig()")
+				elseif p3 > 13 and p3 < 19 then
+					rednet.send(nID, "turtle.digDown()")
+				end
+			elseif p1 == 2 then
+				if p3 > 1 and p3 < 7 then
+					rednet.send(nID, "turtle.placeUp()")
+				elseif p3 > 7 and p3 < 13 then
+					rednet.send(nID, "turtle.place()")
+				elseif p3 > 13 and p3 < 19 then
+					rednet.send(nID, "turtle.placeDown()")
+				end
+			end
+		end
+	elseif e == "rednet_message" then
+		if p2 == "PADI" then
+			if nID == -1 then
+				rednet.send(p1, "PADO")
+				nID = p1
+			else
+				rednet.send(p1, "PADT")
+			end
+		end
+	else
+		table.insert(tEvents, {e, p1, p2, p3, p4})
+	end
+end
