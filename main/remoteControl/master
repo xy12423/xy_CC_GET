@@ -10,6 +10,7 @@ local function onExit()
 	end
 	term.clear()
 	term.setCursorPos(1, 1)
+	term.setBackgroundColor(colors.black)
 end
 
 rednet.open("back")
