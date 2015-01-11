@@ -5,6 +5,9 @@ local function onExit()
 	for i, n in ipairs(tEvents) do
 		os.queueEvent(unpack(n, 1))
 	end
+	if nID ~= -1 then
+		rednet.send(nID, "PADT")
+	end
 	term.clear()
 	term.setCursorPos(1, 1)
 end

@@ -87,11 +87,17 @@ while true do
 	if e == "terminate" then
 		break
 	elseif e == "rednet_message" and p1 == nID then
-		local ok, err = loadstring(p2)
-		if ok then
-			ok, err = pcall(ok)
-			if not ok then
-				printError(err)
+		if p2 == "PADT" then
+			print("Connection terminated by host")
+			nID = -1
+			break
+		else
+			local ok, err = loadstring(p2)
+			if ok then
+				ok, err = pcall(ok)
+				if not ok then
+					printError(err)
+				end
 			end
 		end
 	else
