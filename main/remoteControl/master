@@ -8,9 +8,10 @@ local function onExit()
 	if nID ~= -1 then
 		rednet.send(nID, "PADT")
 	end
+	term.setBackgroundColor(colors.black)
+	term.setTextColor(colors.white)
 	term.clear()
 	term.setCursorPos(1, 1)
-	term.setBackgroundColor(colors.black)
 end
 
 rednet.open("back")
