@@ -29,15 +29,19 @@ if not open() then
 end
 
 local tEvents = {}
+local nID = -1
 
 local function onExit()
 	for i, n in ipairs(tEvents) do
 		os.queueEvent(unpack(n, 1))
 	end
+	if nID ~= -1 then
+		rednet.send(nID, "PADT")
+	end
 end
 
 local sCName = read()
-local nID = rednet.lookup("remoteControl", sCName)
+nID = rednet.lookup("remoteControl", sCName)
 if not nID then
 	print("Can't find host")
 	onExit()
@@ -47,12 +51,17 @@ rednet.send(nID, "PADI")
 local timer = os.startTimer(5)
 local timeLeft = 5
 while true do
-	local e, p1, p2, p3, p4 = os.pullEvent()
-	if e == "rednet_message" and p1 == nID then
+	local e, p1, p2, p3, p4 = os.pullEventRaw()
+	if e == "terminate" then
+		onExit()
+		return
+	elseif e == "rednet_message" and p1 == nID then
 		if p2 == "PADO" then
 			print("Connection Established")
 			break
 		else
+			nID = -1
+			print("Connection was Refused")
 			onExit()
 			return
 		end
@@ -64,6 +73,9 @@ while true do
 			timeLeft = timeLeft - 1
 		else
 			print("Timed out.")
+			nID = -1
+			onExit()
+			return
 		end
 	else
 		table.insert(tEvents, {e, p1, p2, p3, p4})

@@ -18,8 +18,10 @@ term.setCursorPos(1, 1)
 paintutils.drawImage(tImage, 1, 1)
 
 while true do
-	local e, p1, p2, p3, p4 = os.pullEvent()
-	if e == "key" and nID ~= -1 then
+	local e, p1, p2, p3, p4 = os.pullEventRaw()
+	if e == "terminate" then
+		break
+	elseif e == "key" and nID ~= -1 then
 		if p1 == keys.w then
 			rednet.send(nID, "turtle.forward()")
 		elseif p1 == keys.s then
@@ -61,6 +63,8 @@ while true do
 			else
 				rednet.send(p1, "PADT")
 			end
+		elseif p2 == "PADT" and p1 == nID then
+			nID = -1
 		end
 	else
 		table.insert(tEvents, {e, p1, p2, p3, p4})
