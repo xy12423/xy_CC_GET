@@ -19,21 +19,22 @@ paintutils.drawImage(tImage, 1, 1)
 
 while true do
 	local e, p1, p2, p3, p4 = os.pullEvent()
-	if e == "key" and nID != -1 then
+	if e == "key" and nID ~= -1 then
 		if p1 == keys.w then
+			print("a")
 			rednet.send(nID, "turtle.forward()")
-		else if p1 == keys.s then
+		elseif p1 == keys.s then
 			rednet.send(nID, "turtle.back()")
-		else if p1 == keys.a then
+		elseif p1 == keys.a then
 			rednet.send(nID, "turtle.up()")
-		else if p1 == keys.d then
+		elseif p1 == keys.d then
 			rednet.send(nID, "turtle.down()")
-		else if p1 == keys.q then
+		elseif p1 == keys.q then
 			rednet.send(nID, "turtle.turnLeft()")
-		else if p1 == keys.e then
+		elseif p1 == keys.e then
 			rednet.send(nID, "turtle.turnRight()")
 		end
-	elseif e == "mouse_click" and nID != -1 then
+	elseif e == "mouse_click" and nID ~= -1 then
 		if p3 > 3 and p3 < 24 then
 			if p1 == 1 then
 				if p3 > 1 and p3 < 7 then
@@ -66,3 +67,5 @@ while true do
 		table.insert(tEvents, {e, p1, p2, p3, p4})
 	end
 end
+
+onExit()

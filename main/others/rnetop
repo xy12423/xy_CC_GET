@@ -1,0 +1,241 @@
+local function open()
+	local bOpen, sFreeSide = false, nil
+	for n,sSide in pairs(rs.getSides()) do	
+		if peripheral.getType( sSide ) == "modem" then
+			sFreeSide = sSide
+			if rednet.isOpen( sSide ) then
+				bOpen = true
+				break
+			end
+		end
+	end
+	
+	if not bOpen then
+		if sFreeSide then
+			print( "No modem active. Opening "..sFreeSide.." modem" )
+			rednet.open( sFreeSide )
+			sOpenedSide = sFreeSide
+			return true
+		else
+			print( "No modem attached" )
+			return false
+		end
+	end
+	return true
+end
+
+if not open() then
+	return
+end
+
+lx, ly = term.getSize()
+
+term.clear()
+term.setCursorPos( 1, 1 )
+print ("Rednet Tool By xy12423")
+
+function drawUp()
+	for i = 2, ly - 3 do
+		for j = 1, lx do
+			term.setCursorPos( j, i )
+			term.write(" ")
+		end
+	end
+	local str = ""
+	for i = 1, lx do
+		str = str .. "-"
+	end
+	term.setCursorPos( 1, 1 )
+	for i = 1, lx do
+		term.setCursorPos( i, 2 )
+		term.write("-")
+	end
+	for i = 3, ly - 4 do
+		term.setCursorPos( 1, i )
+		term.write("|")
+		term.setCursorPos( lx, i )
+		term.write("|")
+	end
+	term.setCursorPos( 1, ly - 3 )
+	for i = 1, lx do
+		term.setCursorPos( i, ly - 3 )
+		term.write("-")
+	end
+end
+
+function drawDown()
+	for i = ly - 2, ly do
+		for j = 1, lx do
+			term.setCursorPos( j, i )
+			term.write(" ")
+		end
+	end
+	local str = ""
+	for i = 1, lx do
+		str = str .. "-"
+	end
+	term.setCursorPos( 1, ly - 2 )
+	for i = 1, lx do
+		term.setCursorPos( i, ly - 2 )
+		term.write("-")
+	end
+	term.setCursorPos( 1, ly - 1 )
+	term.write("|")
+	term.setCursorPos( lx, ly - 1 )
+	term.write("|")
+	term.setCursorPos( 1, ly )
+	for i = 1, lx do
+		term.setCursorPos( i, ly )
+		term.write("-")
+	end
+end
+
+function drawFrame()
+	drawUp()
+	drawDown()
+end
+
+drawFrame()
+str = ""
+term.setCursorPos( 2, ly - 1 )
+term.setCursorBlink(true)
+pts = false
+lp = 3
+msgtbl = {}
+msgtbl[0] = ""
+msgjs = 0
+msgpt = 0
+
+while true do
+	local e, p1, p2 = os.pullEvent()
+	if e == "char" then
+		str = str .. p1
+		term.setCursorPos( 2, ly - 1 )
+		if string.len(str) > lx - 3 then
+			write(string.sub(str, string.len(str) - ly + 2))
+		else
+			write(str)
+		end
+	elseif e == "key" then
+		if p1 == 28 then
+			if str == "exit" then
+				term.clear()
+				term.setCursorPos( 1, 1 )
+				return
+			end
+			local spcp = string.find(str, " ")
+			if spcp == 1 then
+				term.clear()
+				term.setCursorPos( 1, 1 )
+				return
+			end
+			local id = tonumber(string.sub(str, 1, spcp - 1))
+			if string.len(str) < spcp then
+				term.clear()
+				term.setCursorPos( 1, 1 )
+				return
+			elseif string.len(str) == spcp then
+				msg = ""
+			end
+			local msg = string.sub(str, spcp + 1)
+			if id == "all" then
+				rednet.broadcast(msg)
+			else
+				rednet.send(id, msg)
+			end
+			msgtbl[msgjs] = str
+			msgjs = msgjs + 1
+			msgpt = msgpt + 1
+			msgtbl[msgjs] = ""
+			str = ""
+			for i = 2, lx - 1 do
+				term.setCursorPos( i, ly - 1 )
+				term.write(" ")
+			end
+			term.setCursorPos( 2, ly - 1 )
+		elseif p1 == 14 then
+			if str ~= "" then
+				str = string.sub(str, 1, string.len(str) - 1) .. ""
+				for i = 2, lx - 1 do
+					term.setCursorPos( i, ly - 1 )
+					term.write(" ")
+				end
+				term.setCursorPos( 2, ly - 1 )
+				if string.len(str) > lx - 3 then
+					write(string.sub(str, string.len(str) - ly + 2))
+				else
+					write(str)
+				end
+			end
+		elseif p1 == 200 then
+			if msgpt ~= 0 then
+				msgpt = msgpt - 1
+				str = msgtbl[msgpt]
+				for i = 2, lx - 1 do
+					term.setCursorPos( i, ly - 1 )
+					term.write(" ")
+				end
+				term.setCursorPos( 2, ly - 1 )
+				if str then
+					if string.len(str) > lx - 3 then
+						write(string.sub(str, string.len(str) - ly + 2))
+					else
+						write(str)
+					end
+				end
+			end
+		elseif p1 == 208 then
+			if msgpt ~= msgjs then
+				msgpt = msgpt + 1
+				str = msgtbl[msgpt]
+				for i = 2, lx - 1 do
+					term.setCursorPos( i, ly - 1 )
+					term.write(" ")
+				end
+				term.setCursorPos( 2, ly - 1 )
+				if str then
+					if string.len(str) > lx - 3 then
+						write(string.sub(str, string.len(str) - ly + 2))
+					else
+						write(str)
+					end
+				end
+			end
+		end
+	elseif e == "rednet_message" then
+		term.setCursorBlink(false)
+		p2 = tostring(p1) .. " " .. p2
+		if lp < ly - 5 then
+			while string.len(p2) > 0 do
+				term.setCursorPos( 2, lp )
+				if string.len(p2) < lx - 2 then
+					write(p2)
+					lp = lp + 1
+					break
+				else
+					write(string.sub(p2, 1, lx - 2))
+					p2 = string.sub(p2, lx - 1)
+					lp = lp + 1
+				end
+			end
+		else
+			drawUp()
+			term.setCursorPos( 2, 3 )
+			lp = 3
+			while string.len(p2) > 0 do
+				term.setCursorPos( 2, lp )
+				if string.len(p2) < lx - 2 then
+					write(p2)
+					lp = lp + 1
+					break
+				else
+					write(string.sub(p2, 1, lx - 2))
+					p2 = string.sub(p2, lx - 1)
+					lp = lp + 1
+				end
+			end
+		end
+		term.setCursorBlink(true)
+		term.setCursorPos( 2, ly - 1 )
+	end
+end

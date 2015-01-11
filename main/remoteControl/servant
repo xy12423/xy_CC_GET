@@ -8,15 +8,32 @@ end
 
 local sCName = read()
 local nID = rednet.lookup("remoteControl", sCName)
+if not nID then
+	print("Can't find host")
+	onExit()
+	return
+end
 rednet.send(nID, "PADI")
+local timer = os.startTimer(5)
+local timeLeft = 5
 while true do
 	local e, p1, p2, p3, p4 = os.pullEvent()
 	if e == "rednet_message" and p1 == nID then
 		if p2 == "PADO" then
+			print("Connection Established")
 			break
 		else
 			onExit()
 			return
+		end
+	elseif e == "timer" and p1 == timer then
+		if timeLeft > 0 then
+			print("Timed out.Try again.")
+			rednet.send(nID, "PADI")
+			timer = os.startTimer(5)
+			timeLeft = timeLeft - 1
+		else
+			print("Timed out.")
 		end
 	else
 		table.insert(tEvents, {e, p1, p2, p3, p4})
