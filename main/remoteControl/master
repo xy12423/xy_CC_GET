@@ -14,8 +14,59 @@ local function onExit()
 	term.setCursorPos(1, 1)
 end
 
-rednet.open("back")
-rednet.host("remoteControl", "xy_m_1")
+local function waitKey()
+	local _tEvents = {}
+	while true do
+		local e, p1, p2, p3, p4 = os.pullEvent()
+		if e == "key" or (e == "char" or (e == "mouse_click" or e == "monitor_touch")) then
+			break
+		else
+			table.insert(_tEvents, {e, p1, p2, p3, p4})
+		end
+	end
+	for i, n in ipairs(_tEvents) do
+		os.queueEvent(unpack(n, 1))
+	end
+end
+
+local function open()
+	local bOpen, sFreeSide = false, nil
+	for n,sSide in pairs(rs.getSides()) do	
+		if peripheral.getType( sSide ) == "modem" then
+			sFreeSide = sSide
+			if rednet.isOpen( sSide ) then
+				bOpen = true
+				break
+			end
+		end
+	end
+	
+	if not bOpen then
+		if sFreeSide then
+			print( "No modem active. Opening "..sFreeSide.." modem" )
+			rednet.open( sFreeSide )
+			sOpenedSide = sFreeSide
+			return true
+		else
+			print( "No modem attached" )
+			return false
+		end
+	end
+	return true
+end
+
+if not os.getComputerLabel() then
+	print("Please set a label for your device before using")
+	print("Press any key to continue")
+	waitKey()
+	return
+end
+
+if not open() then
+	waitKey()
+	return
+end
+rednet.host("remoteControl", os.getComputerLabel())
 
 local tImage = { {}, { 0, 0, 0, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, }, { 0, 0, 0, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, }, { 0, 0, 0, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, }, { 0, 0, 0, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, }, { 0, 0, 0, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, }, {}, { 0, 0, 0, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, }, { 0, 0, 0, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, }, { 0, 0, 0, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, }, { 0, 0, 0, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, }, { 0, 0, 0, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, }, {}, { 0, 0, 0, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, }, { 0, 0, 0, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, }, { 0, 0, 0, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, }, { 0, 0, 0, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, }, { 0, 0, 0, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, },}
 term.clear()
