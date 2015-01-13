@@ -1,0 +1,17 @@
+local tArgs = { ... }
+if #tArgs < 1 then
+	return
+end
+
+local tFH = fs.open(tArgs[1], "r")
+
+local function main()
+	local nLen = tonumber(tFH.readLine())
+	local sLine
+	for i = 1, nLen do
+		sLine = tFH.readLine()
+	end
+end
+
+local ok, err = pcall(main)
+tFH.close()
