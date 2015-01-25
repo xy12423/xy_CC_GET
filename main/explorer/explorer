@@ -3,6 +3,8 @@ if #tArgs == 0 then
 	return shell.run("fg", shell.getRunningProgram(), "1")
 end
 
+--local tLogH = fs.open("log", "w")
+
 local nativeTermElem = term.current()
 local lx, ly = term.getSize()
 ly = ly - 2
@@ -22,6 +24,7 @@ local bNHidden = false
 local vAlarm, nAlarmInterval = nil, 1 / 60
 local tEventsS = {}
 local tSideLst = {{title = "/", path = "/"}}
+local bMouseOff = false
 
 local function runInForeground ( sProgram, ... )
 	return shell.run("fg", sProgram, ...)
@@ -225,6 +228,7 @@ local function onExit()
 	for i, n in ipairs(tEventsS) do
 		os.queueEvent(unpack(n, 1))
 	end
+	--tLogH.close()
 end
 
 local sDir = ""
@@ -1061,6 +1065,7 @@ while true do
 	end
 	while true do
 		local e, key, mx, my = os.pullEventRaw()
+		--tLogH.writeLine(e .. " " .. tostring(key) .. " " .. tostring(mx) .. " " .. tostring(my))
 		if e == "terminate" then
 			onExit()
 			return
@@ -1267,7 +1272,7 @@ while true do
 				end
 				ctrlClick = false
 			end
-		elseif e == "mouse_click" then
+		elseif e == "mouse_click" and bMouseOff == false then
 			ctrlClick = false
 			if my == 1 and key == 1 then
 				if menuUpClick(mx) then
@@ -1369,7 +1374,7 @@ while true do
 					break
 				end
 			end
-		elseif e == "mouse_scroll" then
+		elseif e == "mouse_scroll" and bMouseOff == false then
 			dblClick = false
 			ctrlClick = false
 			if key == -1 then
@@ -1389,6 +1394,7 @@ while true do
 			end
 		elseif e == "monitor_touch" then
 			ctrlClick = false
+			bMouseOff = true
 			if mx == lx and my == 3 then
 				if ptrf ~= 1 then
 					ptrf = ptrf - 1
