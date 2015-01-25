@@ -420,7 +420,7 @@ local function refScr ()
 		printMsg(sMsgWillPrint, 1, lx - 6)
 		sMsgWillPrint = nil
 	else
-		write(tostring(nFolderC) .. " Folder(s), " .. tostring(nFileC) .. " File(s)")
+		write(string.sub(tostring(nFolderC) .. " Folder(s), " .. tostring(nFileC) .. " File(s)", 1, lx - 6))
 	end
 	term.setCursorPos(lx - 5, ly + 2)
 	write("|Eject")
@@ -1584,7 +1584,7 @@ while true do
 				term.setCursorPos(1, ly + 2)
 				term.write(str_repeat(" ", lx - 6))
 				term.setCursorPos(1, ly + 2)
-				write(tostring(nFolderC) .. " Folder(s), " .. tostring(nFileC) .. " File(s)")
+				write(string.sub(tostring(nFolderC) .. " Folder(s), " .. tostring(nFileC) .. " File(s)", 1, lx - 6))
 			end
 		elseif e == "alarm" and key == vAlarm then
 			timerAlarm()
