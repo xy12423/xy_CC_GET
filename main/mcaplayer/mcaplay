@@ -1,17 +1,44 @@
 local tArgs = { ... }
-if #tArgs < 1 then
+if #tArgs ~= 1 then
 	return
 end
 
-local tFH = fs.open(tArgs[1], "r")
-
-local function main()
-	local nLen = tonumber(tFH.readLine())
-	local sLine
-	for i = 1, nLen do
-		sLine = tFH.readLine()
-	end
+local sFile = tArgs[1]
+local tFH = fs.open(sFile, "r")
+if tFH == nil then
+	return
 end
 
-local ok, err = pcall(main)
-tFH.close()
+local nLen = tonumber(tFH.readLine())
+local nCommand, nNote
+local nInterval = 0.1
+local tInst = {
+	"note.harp", 
+	"note.bass", 
+	"note.bd", 
+	"note.snare", 
+	"note.hat", 
+	"ambient.cave.cave11", 
+	"fireworks.blast1"
+}
+local handle = peripheral.wrap("top")
+
+local i = 1
+local sLine = tFH.readLine()
+
+while sLine do
+	nCommand = tonumber(sLine)
+	if nCommand == -1 then
+		sleep(nInterval)
+	elseif nCommand == -2 then
+		nInterval = tonumber(tFH.readLine())
+	else
+		nNote = tonumber(tFH.readLine())
+		handle.setCommand("/playsound " .. tInst[nCommand] .. " @a ~ ~ ~ 1 " .. tostring(2 ^ ((nNote - 12) / 12)) .. " 1")
+		handle.runCommand()
+	end
+	i = i + 1
+	sLine = tFH.readLine()
+end
+
+print(i)
