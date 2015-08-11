@@ -1,5 +1,23 @@
+--[[
+mcaplay, use /playsound to play music in minecraft(Piano+ used)
+Copyright (C) <2015>  <xy12423>
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+]]
+
 local tArgs = { ... }
-if #tArgs ~= 1 then
+if #tArgs < 1 then
 	return
 end
 
@@ -9,17 +27,51 @@ if tFH == nil then
 	return
 end
 
+local sUser = tArgs[2]
+if not sUser then
+	sUser = "@p"
+end
+
 local nLen = tonumber(tFH.readLine())
 local nCommand, nNote
-local nInterval = 0.1
+local nInterval, sVolume = 0.1, "1"
 local tInst = {
-	"note.harp", 
-	"note.bass", 
-	"note.bd", 
-	"note.snare", 
-	"note.hat", 
-	"ambient.cave.cave11", 
-	"fireworks.blast1"
+	"note.bass",
+	"note.snare",
+	"note.harp",
+	"note.hat",
+	"note.bd"
+}
+local tFastPowLower = {
+	"0.5",
+	"0.52973154717964763228091264747317",
+	"0.56123102415468649071676652483959",
+	"0.59460355750136053335874998528024",
+	"0.62996052494743658238360530363911",
+	"0.66741992708501718241541594059223"
+}
+local tFastPow = {
+	"0.70710678118654752440084436210485",
+	"0.7491535384383407493996403660149",
+	"0.79370052598409973737585281963615",
+	"0.84089641525371454303112547623321",
+	"0.89089871814033930474022620559051",
+	"0.94387431268169349664191315666753",
+	"1.0",
+	"1.0594630943592952645618252949463",
+	"1.1224620483093729814335330496792",
+	"1.1892071150027210667174999705605",
+	"1.2599210498948731647672106072782",
+	"1.3348398541700343648308318811845"
+}
+local tFastPowHigher = {
+	"1.4142135623730950488016887242097",
+	"1.4983070768766814987992807320298",
+	"1.5874010519681994747517056392723",
+	"1.6817928305074290860622509524664",
+	"1.781797436280678609480452411181",
+	"1.8877486253633869932838263133351"
+	--"2.0"
 }
 local handle = peripheral.wrap("top")
 
@@ -32,13 +84,25 @@ while sLine do
 		sleep(nInterval)
 	elseif nCommand == -2 then
 		nInterval = tonumber(tFH.readLine())
+		print("Changing interval to " .. tostring(nInterval))
+	elseif nCommand == -3 then
+		sVolume = tFH.readLine()
 	else
-		nNote = tonumber(tFH.readLine())
-		handle.setCommand("/playsound " .. tInst[nCommand] .. " @a ~ ~ ~ 1 " .. tostring(2 ^ ((nNote - 12) / 12)) .. " 1")
-		handle.runCommand()
+		nLevel = math.floor(nCommand / 12)
+		nCommand = nCommand % 12
+		if nLevel > 0 and nLevel < 6 then
+			commands.execAsync("/playsound " .. tInst[nLevel] .. " " .. sUser .. " ~ ~ ~ " .. sVolume .. " " .. tFastPow[nCommand + 1] .. " 1")
+		elseif nLevel == 0 then
+			nCommand = nCommand - 5
+			if nCommand > 0 then
+				commands.execAsync("/playsound " .. tInst[1] .. " " .. sUser .. " ~ ~ ~ " .. sVolume .. " " .. tFastPowLower[nCommand] .. " 1")
+			end
+		elseif nLevel == 6 and nCommand < 6 then
+			commands.execAsync("/playsound " .. tInst[5] .. " " .. sUser .. " ~ ~ ~ " .. sVolume .. " " .. tFastPowHigher[nCommand + 1] .. " 1")
+		end
 	end
 	i = i + 1
 	sLine = tFH.readLine()
 end
 
-print(i)
+tFH.close()
